@@ -1,0 +1,9 @@
+export declare const SanitizedText: () => PropertyDecorator;
+export declare const OptionalSanitizedText: () => PropertyDecorator;
+export declare const UppercaseText: () => PropertyDecorator;
+export declare const OptionalUppercaseText: () => PropertyDecorator;
+export declare const TrimmedText: () => PropertyDecorator;
+export declare const OptionalTrimmedText: () => PropertyDecorator;
+export declare const ToInteger: () => PropertyDecorator;
+export declare const ToNumber: () => PropertyDecorator;
+export declare const ToDate: () => PropertyDecorator;
