@@ -1,0 +1,149 @@
+import {
+  ClockCircleOutlined,
+  DownOutlined,
+  LogoutOutlined,
+  MenuOutlined,
+  UserOutlined
+} from '@ant-design/icons';
+import { useIsFetching } from '@tanstack/react-query';
+import { Avatar, Breadcrumb, Button, Dropdown, Layout, Space, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useLogout } from '@hooks/useAuth';
+import { useAuthStore } from '@stores/auth.store';
+import { useUiStore } from '@stores/ui.store';
+import { roleLabels } from '@utils/format';
+import { formatQuerySyncLabel } from '@utils/presentation';
+
+const { Header: AntHeader } = Layout;
+const { Text, Title } = Typography;
+
+const routeLabelMap: Record<string, string> = {
+  dashboard: 'Dashboard',
+  users: 'Người dùng',
+  create: 'Tạo mới',
+  edit: 'Chỉnh sửa',
+  airports: 'Sân bay',
+  aircrafts: 'Máy bay',
+  flights: 'Chuyến bay',
+  seats: 'Ghế',
+  passengers: 'Hành khách',
+  bookings: 'Đặt vé',
+  login: 'Đăng nhập'
+};
+
+const routeSubtitleMap: Record<string, string> = {
+  dashboard: 'Operations overview and live workspace context',
+  users: 'Identity directory and access management',
+  airports: 'Airport registry and travel network coverage',
+  aircrafts: 'Aircraft inventory and fleet setup',
+  flights: 'Flight schedules, routes, and seat orchestration',
+  seats: 'Seat inventory and cabin availability',
+  passengers: 'Passenger directory and travel profiles',
+  bookings: 'Booking ledger and purchase activity'
+};
+
+export const Header = () => {
+  const location = useLocation();
+  const { user } = useAuthStore();
+  const { setMobileSidebarOpen } = useUiStore();
+  const logoutMutation = useLogout();
+  const isFetching = useIsFetching();
+  const [lastIdleSync, setLastIdleSync] = useState<number | null>(Date.now());
+
+  const breadcrumbItems = useMemo(() => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const items = parts.map((part, index) => {
+      const path = `/${parts.slice(0, index + 1).join('/')}`;
+      const isLast = index === parts.length - 1;
+      const title = routeLabelMap[part] || part;
+      return {
+        title: isLast ? <span>{title}</span> : <Link to={path}>{title}</Link>
+      };
+    });
+
+    return [{ title: <Link to="/dashboard">Home</Link> }, ...items];
+  }, [location.pathname]);
+
+  const activeRoute = useMemo(() => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const match = [...parts].reverse().find((part) => routeLabelMap[part]);
+    return match || 'dashboard';
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (isFetching === 0) {
+      setLastIdleSync(Date.now());
+    }
+  }, [isFetching]);
+
+  return (
+    <AntHeader
+      className="app-header-glass"
+      style={{
+        background: 'rgba(255,255,255,0.84)',
+        minHeight: 88,
+        padding: '0 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: '1px solid rgba(160, 182, 204, 0.24)'
+      }}
+    >
+      <Space size={16} align="start" style={{ minWidth: 0 }}>
+        <Button
+          className="mobile-nav-trigger"
+          shape="circle"
+          icon={<MenuOutlined />}
+          onClick={() => setMobileSidebarOpen(true)}
+          style={{ display: 'none' }}
+        />
+        <Space direction="vertical" size={3} style={{ minWidth: 0 }}>
+          <Breadcrumb items={breadcrumbItems} />
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              {routeLabelMap[activeRoute]}
+            </Title>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {routeSubtitleMap[activeRoute] || 'SkyBooking operations workspace'}
+            </Text>
+          </div>
+        </Space>
+      </Space>
+
+      <Space size={18}>
+        <Space size={8} align="center">
+          <ClockCircleOutlined style={{ color: '#486581' }} />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {isFetching > 0 ? 'Syncing modules...' : formatQuerySyncLabel(lastIdleSync)}
+          </Text>
+        </Space>
+
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'logout',
+                label: 'Đăng xuất',
+                icon: <LogoutOutlined />,
+                onClick: () => logoutMutation.mutate()
+              }
+            ]
+          }}
+        >
+          <Space style={{ cursor: 'pointer' }}>
+            <Avatar
+              style={{ background: 'linear-gradient(135deg, #0f6cbd 0%, #13908c 100%)' }}
+              icon={<UserOutlined />}
+            />
+            <Space size={4}>
+              <Text strong>{user?.name || 'Unknown'}</Text>
+              <Text type="secondary">({user ? roleLabels[user.role] : '-'})</Text>
+            </Space>
+            <DownOutlined />
+          </Space>
+        </Dropdown>
+      </Space>
+    </AntHeader>
+  );
+};
