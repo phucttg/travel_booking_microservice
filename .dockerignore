@@ -1,0 +1,11 @@
+.git
+.git/**
+.idea
+.vscode
+**/.DS_Store
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+src/frontend/node_modules
+src/frontend/dist
