@@ -1,0 +1,16 @@
+services:
+  identity:
+    env_file:
+      - ../../src/identity/.env.rds
+
+  flight:
+    env_file:
+      - ../../src/flight/.env.rds
+
+  passenger:
+    env_file:
+      - ../../src/passenger/.env.rds
+
+  booking:
+    env_file:
+      - ../../src/booking/.env.rds
