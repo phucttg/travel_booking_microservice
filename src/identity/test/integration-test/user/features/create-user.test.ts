@@ -21,7 +21,7 @@ describe('integration test for create user', () => {
     const isPublished = await fixture.rabbitmqPublisher.isPublished(new UserCreated());
     expect(isPublished).toBe(true);
 
-    const user = fixture.userRepository.findUserById(result.id);
+    const user = await fixture.userRepository.findUserById(result.id);
     expect(user).not.toBeNull();
   });
 });

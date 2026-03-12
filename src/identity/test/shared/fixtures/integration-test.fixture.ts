@@ -107,16 +107,16 @@ export class IntegrationTestFixture {
     }
 
     public async cleanUp() {
+        if (this.fixture.app) {
+            await this.fixture.app.close();
+        }
+
         if (this.fixture.rabbitmqContainer) {
             await this.fixture.rabbitmqContainer.stop();
         }
 
         if (this.fixture.postgresContainer) {
             await this.fixture.postgresContainer.stop();
-        }
-
-        if (this.fixture.app) {
-            await this.fixture.app.close();
         }
     }
 }
