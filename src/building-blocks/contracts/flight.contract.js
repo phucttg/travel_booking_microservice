@@ -40,6 +40,8 @@ var SeatReleaseReason;
 (function (SeatReleaseReason) {
     SeatReleaseReason[SeatReleaseReason["BOOKING_CANCELED"] = 0] = "BOOKING_CANCELED";
     SeatReleaseReason[SeatReleaseReason["BOOKING_CREATE_FAILED"] = 1] = "BOOKING_CREATE_FAILED";
+    SeatReleaseReason[SeatReleaseReason["BOOKING_EXPIRED"] = 2] = "BOOKING_EXPIRED";
+    SeatReleaseReason[SeatReleaseReason["PAYMENT_INTENT_CREATE_FAILED"] = 3] = "PAYMENT_INTENT_CREATE_FAILED";
 })(SeatReleaseReason || (exports.SeatReleaseReason = SeatReleaseReason = {}));
 class FlightCreated {
     id;
@@ -290,6 +292,8 @@ class SeatReserved {
     seatClass;
     seatType;
     flightId;
+    price;
+    currency;
     isReserved;
     createdAt;
     updatedAt;
@@ -325,6 +329,18 @@ __decorate([
     (0, class_validator_1.IsInt)(),
     __metadata("design:type", Number)
 ], SeatReserved.prototype, "flightId", void 0);
+__decorate([
+    (0, validation_decorators_1.ToNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], SeatReserved.prototype, "price", void 0);
+__decorate([
+    (0, validation_decorators_1.TrimmedText)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.MaxLength)(3),
+    __metadata("design:type", String)
+], SeatReserved.prototype, "currency", void 0);
 __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
@@ -404,6 +420,8 @@ class SeatDto {
     seatClass;
     seatType;
     flightId;
+    price;
+    currency;
     isReserved;
     createdAt;
     updatedAt;

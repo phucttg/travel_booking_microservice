@@ -50,7 +50,9 @@ export enum SeatType {
 
 export enum SeatReleaseReason {
   BOOKING_CANCELED = 0,
-  BOOKING_CREATE_FAILED = 1
+  BOOKING_CREATE_FAILED = 1,
+  BOOKING_EXPIRED = 2,
+  PAYMENT_INTENT_CREATE_FAILED = 3
 }
 
 export class FlightCreated implements IEvent {
@@ -253,6 +255,16 @@ export class SeatReserved implements IEvent {
   @IsInt()
   flightId: number;
 
+  @ToNumber()
+  @IsPositive()
+  price: number;
+
+  @TrimmedText()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(3)
+  currency: string;
+
   @IsBoolean()
   isReserved: boolean;
 
@@ -325,6 +337,8 @@ export class SeatDto {
   seatClass: SeatClass;
   seatType: SeatType;
   flightId: number;
+  price: number;
+  currency: string;
   isReserved: boolean;
   createdAt: Date;
   updatedAt?: Date;
