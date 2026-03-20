@@ -27,6 +27,7 @@ services:
       - POSTGRES_PASSWORD=postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./../configs/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:ro
     networks:
       - booking
 
@@ -35,7 +36,7 @@ services:
     #  Prometheus
     #######################################################
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.10.0
     restart: unless-stopped
     ports:
       # just expose container port not host port - https://docs.docker.com/reference/compose-file/services/#expose
@@ -59,7 +60,7 @@ services:
     #  Tempo
     #######################################################
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.10.1
     container_name: tempo
     restart: unless-stopped
     command: ["-config.file=/etc/tempo.yaml"]
@@ -79,7 +80,7 @@ services:
     #  Loki
     #######################################################
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.6.7
     hostname: loki
     container_name: loki
     expose:
@@ -97,7 +98,7 @@ services:
     #  Grafana
     #######################################################
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.4.0
     container_name: grafana
     restart: unless-stopped
     environment:
@@ -122,7 +123,7 @@ services:
     #  OtelCollector
     #######################################################      
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.147.0
     container_name: otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
@@ -237,6 +238,25 @@ services:
 
 
     #######################################################
+    #  Payment
+    #######################################################
+  payment:
+    build:
+      context: ../..
+      dockerfile: src/payment/Dockerfile
+    container_name: payment
+    depends_on:
+      - postgres
+      - rabbitmq
+    env_file:
+      - ../../src/payment/.env.docker
+    ports:
+      - "3377:3377"
+    networks:
+      - booking
+
+
+    #######################################################
     #  Frontend
     #######################################################
   frontend:
@@ -252,6 +272,8 @@ services:
       passenger:
         condition: service_started
       booking:
+        condition: service_started
+      payment:
         condition: service_started
     ports:
       - "80:80"

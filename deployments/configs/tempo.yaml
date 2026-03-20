@@ -23,10 +23,6 @@ query_frontend:
   mcp_server:
     enabled: true
 
-compactor:
-  compaction:
-    block_retention: 1h # overall Tempo trace retention. set for demo purposes
-
 metrics_generator:
   registry:
     external_labels:
@@ -37,8 +33,6 @@ metrics_generator:
     remote_write:
     - url: http://prometheus:9090/api/v1/write
       send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
 
 storage:
   trace:
