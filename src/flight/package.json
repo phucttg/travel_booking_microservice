@@ -6,7 +6,7 @@
     "author": "PhucFanMu20Nams",
     "license": "MIT",
     "scripts": {
-        "build": "nest build && npm run verify:swagger-runtime",
+        "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && nest build -p tsconfig.build.json && npm run verify:swagger-runtime",
         "dev": "nest start --watch",
         "format": "prettier --write \"**/*.{ts,js}\"",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
