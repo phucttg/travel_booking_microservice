@@ -1,5 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { BookingStatus } from '@/booking/enums/booking-status.enum';
+import { SeatClass } from '@/booking/enums/seat-class.enum';
 
 @Entity()
 export class Booking {
@@ -27,11 +28,17 @@ export class Booking {
   @Column()
   price: number;
 
+  @Column({ default: 'VND' })
+  currency: string;
+
   @Column()
   description: string;
 
   @Column()
   seatNumber: string;
+
+  @Column({ type: 'int', default: SeatClass.UNKNOWN })
+  seatClass: SeatClass;
 
   @Column()
   passengerName: string;
@@ -42,12 +49,17 @@ export class Booking {
   @Column({ nullable: true })
   passengerId?: number | null;
 
-  @Column({
-    type: 'enum',
-    enum: BookingStatus,
-    default: BookingStatus.CONFIRMED
-  })
+  @Column({ type: 'int', default: BookingStatus.PENDING_PAYMENT })
   bookingStatus: BookingStatus;
+
+  @Column({ nullable: true, unique: true })
+  paymentId?: number | null;
+
+  @Column({ nullable: true })
+  paymentExpiresAt?: Date | null;
+
+  @Column({ nullable: true })
+  confirmedAt?: Date | null;
 
   @Column()
   createdAt: Date;
@@ -57,6 +69,9 @@ export class Booking {
 
   @Column({ nullable: true })
   canceledAt?: Date | null;
+
+  @Column({ nullable: true })
+  expiredAt?: Date | null;
 
   constructor(partial?: Partial<Booking>) {
     Object.assign(this, partial);
