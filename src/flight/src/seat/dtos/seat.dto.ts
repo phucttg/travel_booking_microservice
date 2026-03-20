@@ -7,6 +7,8 @@ export class SeatDto {
   seatClass: SeatClass;
   seatType: SeatType;
   flightId: number;
+  price: number;
+  currency: string;
   isReserved: boolean;
   createdAt: Date;
   updatedAt?: Date;

@@ -41,6 +41,14 @@ export class Mapper extends TypeMapper {
       .map(
         (src) => src.flightId,
         (dest) => dest.flightId
+      )
+      .map(
+        (src) => src.flight?.price || 0,
+        (dest) => dest.price
+      )
+      .map(
+        () => 'VND',
+        (dest) => dest.currency
       );
   }
 }

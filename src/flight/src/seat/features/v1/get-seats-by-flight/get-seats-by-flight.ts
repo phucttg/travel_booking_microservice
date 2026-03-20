@@ -7,6 +7,7 @@ import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { Seat } from '@/seat/entities/seat.entity';
 import mapper from '@/seat/mappings';
 import { SeatFlightIdQueryDto } from '@/seat/dtos/seat-flight-id-query.dto';
+import { calculateSeatPrice } from '@/seat/utils/seat-pricing';
 
 export class GetSeatsByFlight {
   flightId: number;
@@ -43,6 +44,11 @@ export class GetSeatsByFlightHandler implements IQueryHandler<GetSeatsByFlight> 
   async execute(query: GetSeatsByFlight): Promise<SeatDto[]> {
     const seatsEntity = await this.seatRepository.getSeatsByFlightIdAll(query.flightId);
 
-    return seatsEntity.map((seat) => mapper.map<Seat, SeatDto>(seat, new SeatDto()));
+    return seatsEntity.map((seat) => {
+      const seatDto = mapper.map<Seat, SeatDto>(seat, new SeatDto());
+      seatDto.price = calculateSeatPrice(seat.flight?.price || 0, seat.seatClass);
+      seatDto.currency = 'VND';
+      return seatDto;
+    });
   }
 }

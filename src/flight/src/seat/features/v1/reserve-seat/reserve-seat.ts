@@ -21,6 +21,7 @@ import { ReserveSeatRequestDto } from '@/seat/dtos/reserve-seat-request.dto';
 import mapper from '@/seat/mappings';
 import { SeatDto } from '@/seat/dtos/seat.dto';
 import { isFlightBookable } from '@/flight/utils/flight-status';
+import { calculateSeatPrice } from '@/seat/utils/seat-pricing';
 
 export class ReserveSeat {
   seatNumber?: string;
@@ -82,8 +83,12 @@ export class ReserveSeatHandler implements ICommandHandler<ReserveSeat> {
       throw new NotFoundException(command.seatNumber ? 'Seat not available!' : 'No seat available!');
     }
 
-    await this.rabbitmqPublisher.publishMessage(new SeatReserved(seat));
+    const seatDto = mapper.map<Seat, SeatDto>(seat, new SeatDto());
+    seatDto.price = calculateSeatPrice(existFlight.price, seat.seatClass);
+    seatDto.currency = 'VND';
 
-    return mapper.map<Seat, SeatDto>(seat, new SeatDto());
+    await this.rabbitmqPublisher.publishMessage(new SeatReserved(seatDto));
+
+    return seatDto;
   }
 }
