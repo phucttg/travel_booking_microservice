@@ -24,6 +24,7 @@ export interface ProblemDetailsError {
   status: number;
   detail?: string;
   instance?: string;
+  [key: string]: unknown;
 }
 
 export interface AppError {
@@ -31,5 +32,6 @@ export interface AppError {
   code: string;
   message: string;
   detail?: string;
+  meta?: Record<string, unknown>;
   raw?: unknown;
 }

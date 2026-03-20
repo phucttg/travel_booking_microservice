@@ -6,6 +6,8 @@ export interface SeatDto {
   seatClass: SeatClass;
   seatType: SeatType;
   flightId: number;
+  price: number;
+  currency: string;
   isReserved: boolean;
   createdAt: string | Date;
   updatedAt?: string | Date;

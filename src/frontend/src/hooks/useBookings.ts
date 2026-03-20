@@ -48,12 +48,12 @@ export const useCreateBooking = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: CreateBookingRequest) => {
-      const response = await bookingApi.create(payload);
+    mutationFn: async ({ payload, idempotencyKey }: { payload: CreateBookingRequest; idempotencyKey: string }) => {
+      const response = await bookingApi.create(payload, idempotencyKey);
       return response.data;
     },
     onSuccess: () => {
-      message.success('Đặt vé thành công');
+      message.success('Đã giữ chỗ, tiếp tục thanh toán');
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
     },
     onError: (error) => {

@@ -39,6 +39,41 @@ export enum PassengerType {
 }
 
 export enum BookingStatus {
-  CONFIRMED = 0,
-  CANCELED = 1
+  PENDING_PAYMENT = 0,
+  CONFIRMED = 1,
+  EXPIRED = 2,
+  CANCELED = 3
+}
+
+export enum PaymentStatus {
+  PENDING = 0,
+  PROCESSING = 1,
+  SUCCEEDED = 2,
+  FAILED = 3,
+  EXPIRED = 4
+}
+
+export enum RefundStatus {
+  NONE = 0,
+  PENDING = 1,
+  SUCCEEDED = 2,
+  FAILED = 3
+}
+
+export enum FakePaymentScenario {
+  SUCCESS = 'SUCCESS',
+  DECLINE = 'DECLINE',
+  TIMEOUT = 'TIMEOUT'
+}
+
+export enum WalletTopupRequestStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED'
+}
+
+export enum WalletLedgerType {
+  TOPUP_APPROVED = 'TOPUP_APPROVED',
+  BOOKING_DEBIT = 'BOOKING_DEBIT',
+  BOOKING_REFUND = 'BOOKING_REFUND'
 }
