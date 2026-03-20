@@ -3,6 +3,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SeatRepository } from '@/data/repositories/seatRepository';
 import { Seat } from '@/seat/entities/seat.entity';
+import { ProcessedMessage } from '@/seat/entities/processed-message.entity';
 import { Flight } from '@/flight/entities/flight.entity';
 import { FlightRepository } from '@/data/repositories/flightRepository';
 import { AircraftRepository } from '@/data/repositories/aircraftRepository';
@@ -26,9 +27,14 @@ import { RolesGuard } from '@/common/auth/roles.guard';
 import { IRabbitmqConsumer } from 'building-blocks/rabbitmq/rabbitmq-subscriber';
 import { SeatReleaseRequested } from 'building-blocks/contracts/flight.contract';
 import { SeatReleaseRequestedConsumerHandler } from '@/seat/consumers/seat-release-requested.consumer';
+import { ProcessedMessageRepository } from '@/data/repositories/processedMessageRepository';
 
 @Module({
-  imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([Seat, Flight, Aircraft])],
+  imports: [
+    CqrsModule,
+    RabbitmqModule.forRoot(),
+    TypeOrmModule.forFeature([Seat, Flight, Aircraft, ProcessedMessage])
+  ],
   controllers: [
     CreateSeatController,
     GetAvailableSeatsController,
@@ -55,6 +61,10 @@ import { SeatReleaseRequestedConsumerHandler } from '@/seat/consumers/seat-relea
     {
       provide: 'IAircraftRepository',
       useClass: AircraftRepository
+    },
+    {
+      provide: 'IProcessedMessageRepository',
+      useClass: ProcessedMessageRepository
     }
   ],
   exports: []
