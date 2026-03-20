@@ -19,6 +19,17 @@ import { serializeObject } from '../utils/serilization';
 
 @Catch()
 export class ErrorHandlersFilter implements ExceptionFilter {
+  private getExtraFields(err: any): Record<string, unknown> {
+    const response = err?.getResponse?.() || err?.response;
+
+    if (typeof response !== 'object' || response === null || Array.isArray(response)) {
+      return {};
+    }
+
+    const { message, statusCode, error, ...rest } = response as Record<string, unknown>;
+    return rest;
+  }
+
   private logProblem(problem: ProblemDocument): void {
     const serializedProblem = serializeObject(problem);
     const status = Number(problem.status);
@@ -137,6 +148,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: err.getStatus()
       });
+      Object.assign(problem, this.getExtraFields(err));
 
       response.status(HttpStatus.BAD_REQUEST).json(problem);
 
@@ -152,6 +164,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: err.getStatus()
       });
+      Object.assign(problem, this.getExtraFields(err));
       response.status(HttpStatus.UNAUTHORIZED).json(problem);
 
       this.logProblem(problem);
@@ -166,6 +179,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: err.getStatus()
       });
+      Object.assign(problem, this.getExtraFields(err));
 
       response.status(HttpStatus.FORBIDDEN).json(problem);
 
@@ -181,6 +195,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: err.getStatus()
       });
+      Object.assign(problem, this.getExtraFields(err));
 
       response.status(HttpStatus.NOT_FOUND).json(problem);
 
@@ -196,6 +211,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: err.getStatus()
       });
+      Object.assign(problem, this.getExtraFields(err));
 
       response.status(HttpStatus.CONFLICT).json(problem);
 
@@ -212,6 +228,7 @@ export class ErrorHandlersFilter implements ExceptionFilter {
         detail: err.stack,
         status: httpStatus
       });
+      Object.assign(problem, this.getExtraFields(err));
 
       response.status(httpStatus).json(problem);
 

@@ -16,6 +16,14 @@ const joi_1 = require("joi");
 const application_exception_1 = __importDefault(require("../types/exeptions/application.exception"));
 const serilization_1 = require("../utils/serilization");
 let ErrorHandlersFilter = class ErrorHandlersFilter {
+    getExtraFields(err) {
+        const response = err?.getResponse?.() || err?.response;
+        if (typeof response !== 'object' || response === null || Array.isArray(response)) {
+            return {};
+        }
+        const { message, statusCode, error, ...rest } = response;
+        return rest;
+    }
     logProblem(problem) {
         const serializedProblem = (0, serilization_1.serializeObject)(problem);
         const status = Number(problem.status);
@@ -107,6 +115,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: err.getStatus()
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(common_1.HttpStatus.BAD_REQUEST).json(problem);
             this.logProblem(problem);
             return;
@@ -118,6 +127,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: err.getStatus()
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(common_1.HttpStatus.UNAUTHORIZED).json(problem);
             this.logProblem(problem);
             return;
@@ -129,6 +139,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: err.getStatus()
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(common_1.HttpStatus.FORBIDDEN).json(problem);
             this.logProblem(problem);
             return;
@@ -140,6 +151,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: err.getStatus()
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(common_1.HttpStatus.NOT_FOUND).json(problem);
             this.logProblem(problem);
             return;
@@ -151,6 +163,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: err.getStatus()
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(common_1.HttpStatus.CONFLICT).json(problem);
             this.logProblem(problem);
             return;
@@ -163,6 +176,7 @@ let ErrorHandlersFilter = class ErrorHandlersFilter {
                 detail: err.stack,
                 status: httpStatus
             });
+            Object.assign(problem, this.getExtraFields(err));
             response.status(httpStatus).json(problem);
             this.logProblem(problem);
             return;
