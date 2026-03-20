@@ -3,13 +3,13 @@ import { Controller, Get, Inject, Query, Req, UnauthorizedException, UseGuards }
 import { IQueryHandler, QueryBus, QueryHandler } from '@nestjs/cqrs';
 import { BookingDto } from '@/booking/dtos/booking.dto';
 import { IBookingRepository } from '@/data/repositories/booking.repository';
-import { Booking } from '@/booking/entities/booking.entity';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { PagedResult } from 'building-blocks/types/pagination/paged-result';
-import mapper from '@/booking/mappings';
 import { GetBookingsQueryDto } from '@/booking/dtos/get-bookings-query.dto';
 import { Request } from 'express';
 import { Role } from 'building-blocks/contracts/identity.contract';
+import { IPaymentClient } from '@/booking/http-client/services/payment/payment.client';
+import { toBookingDto } from '@/booking/utils/booking-dto';
 
 type JwtRequest = Request & {
   user?: {
@@ -77,7 +77,10 @@ export class GetBookingsController {
 
 @QueryHandler(GetBookings)
 export class GetBookingsHandler implements IQueryHandler<GetBookings> {
-  constructor(@Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository) {}
+  constructor(
+    @Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository,
+    @Inject('IPaymentClient') private readonly paymentClient: IPaymentClient
+  ) {}
 
   async execute(query: GetBookings): Promise<PagedResult<BookingDto[] | null>> {
     const [bookingsEntity, total] = await this.bookingRepository.findBookings(
@@ -92,10 +95,20 @@ export class GetBookingsHandler implements IQueryHandler<GetBookings> {
       return new PagedResult<BookingDto[] | null>(null, total);
     }
 
-    const result = bookingsEntity.map((booking) =>
-      mapper.map<Booking, BookingDto>(booking, new BookingDto())
+    const result = await Promise.all(
+      bookingsEntity.map(async (booking) =>
+        toBookingDto(booking, booking.paymentId ? await this.tryGetPayment(booking.paymentId) : null)
+      )
     );
 
     return new PagedResult<BookingDto[] | null>(result, total);
+  }
+
+  private async tryGetPayment(paymentId: number) {
+    try {
+      return await this.paymentClient.getPaymentById(paymentId);
+    } catch {
+      return null;
+    }
   }
 }

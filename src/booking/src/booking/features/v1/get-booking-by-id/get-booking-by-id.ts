@@ -4,11 +4,11 @@ import { IQueryHandler, QueryBus, QueryHandler } from '@nestjs/cqrs';
 import { BookingDto } from '@/booking/dtos/booking.dto';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { IBookingRepository } from '@/data/repositories/booking.repository';
-import { Booking } from '@/booking/entities/booking.entity';
-import mapper from '@/booking/mappings';
 import { BookingIdQueryDto } from '@/booking/dtos/booking-id-query.dto';
 import { Request } from 'express';
 import { Role } from 'building-blocks/contracts/identity.contract';
+import { IPaymentClient } from '@/booking/http-client/services/payment/payment.client';
+import { toBookingDto } from '@/booking/utils/booking-dto';
 
 type JwtRequest = Request & {
   user?: {
@@ -67,7 +67,10 @@ export class GetBookingByIdController {
 
 @QueryHandler(GetBookingById)
 export class GetBookingByIdHandler implements IQueryHandler<GetBookingById> {
-  constructor(@Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository) {}
+  constructor(
+    @Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository,
+    @Inject('IPaymentClient') private readonly paymentClient: IPaymentClient
+  ) {}
 
   async execute(query: GetBookingById): Promise<BookingDto> {
     const bookingEntity = await this.bookingRepository.findBookingById(
@@ -79,6 +82,15 @@ export class GetBookingByIdHandler implements IQueryHandler<GetBookingById> {
       throw new NotFoundException('Booking not found');
     }
 
-    return mapper.map<Booking, BookingDto>(bookingEntity, new BookingDto());
+    const paymentSummary = bookingEntity.paymentId ? await this.tryGetPayment(bookingEntity.paymentId) : null;
+    return toBookingDto(bookingEntity, paymentSummary);
+  }
+
+  private async tryGetPayment(paymentId: number) {
+    try {
+      return await this.paymentClient.getPaymentById(paymentId);
+    } catch {
+      return null;
+    }
   }
 }

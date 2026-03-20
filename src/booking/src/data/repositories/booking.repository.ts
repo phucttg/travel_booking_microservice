@@ -4,8 +4,10 @@ import { Booking } from '@/booking/entities/booking.entity';
 
 export interface IBookingRepository {
   createBooking(booking: Booking): Promise<Booking>;
-  updateBooking(booking: Booking): Promise<void>;
+  updateBooking(booking: Booking): Promise<Booking>;
   findBookingById(id: number, userId?: number): Promise<Booking>;
+  findBookingByPaymentId(paymentId: number): Promise<Booking>;
+  findActiveBookingByUserAndFlight(userId: number, flightId: number): Promise<Booking>;
   findBookings(
     page: number,
     pageSize: number,
@@ -25,8 +27,8 @@ export class BookingRepository implements IBookingRepository {
     return await this.bookingRepository.save(booking);
   }
 
-  async updateBooking(booking: Booking): Promise<void> {
-    await this.bookingRepository.update(booking.id, booking);
+  async updateBooking(booking: Booking): Promise<Booking> {
+    return await this.bookingRepository.save(booking);
   }
 
   async findBookingById(id: number, userId?: number): Promise<Booking> {
@@ -39,6 +41,24 @@ export class BookingRepository implements IBookingRepository {
     }
 
     return await queryBuilder.getOne();
+  }
+
+  async findBookingByPaymentId(paymentId: number): Promise<Booking> {
+    return await this.bookingRepository.findOne({
+      where: { paymentId }
+    });
+  }
+
+  async findActiveBookingByUserAndFlight(userId: number, flightId: number): Promise<Booking> {
+    return await this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.userId = :userId', { userId })
+      .andWhere('booking.flightId = :flightId', { flightId })
+      .andWhere('booking.bookingStatus IN (:...statuses)', {
+        statuses: [0, 1]
+      })
+      .orderBy('booking.id', 'DESC')
+      .getOne();
   }
 
   async findBookings(

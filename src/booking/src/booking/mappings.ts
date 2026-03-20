@@ -75,8 +75,32 @@ export class Mapper extends TypeMapper {
         (dest) => dest.price
       )
       .map(
+        (src) => src.currency,
+        (dest) => dest.currency
+      )
+      .map(
         (src) => src.seatNumber,
         (dest) => dest.seatNumber
+      )
+      .map(
+        (src) => src.seatClass,
+        (dest) => dest.seatClass
+      )
+      .map(
+        (src) => src.paymentId,
+        (dest) => dest.paymentId
+      )
+      .map(
+        (src) => src.paymentExpiresAt,
+        (dest) => dest.paymentExpiresAt
+      )
+      .map(
+        (src) => src.confirmedAt,
+        (dest) => dest.confirmedAt
+      )
+      .map(
+        (src) => src.expiredAt,
+        (dest) => dest.expiredAt
       );
   }
 }

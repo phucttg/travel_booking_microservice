@@ -17,11 +17,13 @@ import { Request, Response } from 'express';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { IBookingRepository } from '@/data/repositories/booking.repository';
 import { IFlightClient } from '@/booking/http-client/services/flight/flight.client';
+import { IPaymentClient } from '@/booking/http-client/services/payment/payment.client';
 import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { Booking } from '@/booking/entities/booking.entity';
 import { Role } from 'building-blocks/contracts/identity.contract';
 import { FlightStatus, SeatReleaseReason, SeatReleaseRequested } from 'building-blocks/contracts/flight.contract';
 import { BookingStatus } from '@/booking/enums/booking-status.enum';
+import { PaymentRefundRequested, PaymentStatus } from 'building-blocks/contracts/payment.contract';
 
 type JwtRequest = Request & {
   user?: {
@@ -82,6 +84,7 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
   constructor(
     @Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository,
     @Inject('IFlightClient') private readonly flightClient: IFlightClient,
+    @Inject('IPaymentClient') private readonly paymentClient: IPaymentClient,
     @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher
   ) {}
 
@@ -99,8 +102,7 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
       throw new ConflictException('Legacy bookings cannot be canceled automatically');
     }
 
-    if (booking.bookingStatus === BookingStatus.CANCELED) {
-      await this.publishSeatRelease(booking, SeatReleaseReason.BOOKING_CANCELED);
+    if ([BookingStatus.CANCELED, BookingStatus.EXPIRED].includes(booking.bookingStatus)) {
       return;
     }
 
@@ -110,6 +112,7 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
       throw new ConflictException('Booking can no longer be canceled');
     }
 
+    const payment = booking.paymentId ? await this.tryGetPayment(booking.paymentId) : null;
     const canceledBooking = new Booking({
       ...booking,
       bookingStatus: BookingStatus.CANCELED,
@@ -119,6 +122,20 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
 
     await this.bookingRepository.updateBooking(canceledBooking);
     await this.publishSeatRelease(canceledBooking, SeatReleaseReason.BOOKING_CANCELED);
+
+    if (payment && payment.paymentStatus === PaymentStatus.SUCCEEDED) {
+      await this.rabbitmqPublisher.publishMessage(
+        new PaymentRefundRequested({
+          paymentId: payment.id,
+          bookingId: canceledBooking.id,
+          userId: canceledBooking.userId,
+          amount: canceledBooking.price,
+          currency: canceledBooking.currency,
+          reason: 'Booking canceled by user',
+          requestedAt: new Date()
+        })
+      );
+    }
   }
 
   private async publishSeatRelease(booking: Booking, reason: SeatReleaseReason): Promise<void> {
@@ -131,5 +148,13 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
         requestedAt: new Date()
       })
     );
+  }
+
+  private async tryGetPayment(paymentId: number) {
+    try {
+      return await this.paymentClient.getPaymentById(paymentId);
+    } catch {
+      return null;
+    }
   }
 }
