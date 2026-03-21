@@ -23,6 +23,7 @@ export class GetBookings {
   pageSize = 10;
   orderBy = 'id';
   order: 'ASC' | 'DESC' = 'DESC';
+  includePaymentSummary = true;
   currentUserId?: number;
   isAdmin = false;
 
@@ -55,6 +56,7 @@ export class GetBookingsController {
     enum: ['id', 'createdAt', 'price', 'flightDate'],
     example: 'id'
   })
+  @ApiQuery({ name: 'includePaymentSummary', required: false, type: Boolean, example: true })
   public async getBookings(
     @Query() query: GetBookingsQueryDto,
     @Req() request: JwtRequest
@@ -68,12 +70,15 @@ export class GetBookingsController {
     return await this.queryBus.execute(
       new GetBookings({
         ...query,
+        includePaymentSummary: query.includePaymentSummary ?? true,
         currentUserId,
         isAdmin: Number(request.user?.role) === Role.ADMIN
       })
     );
   }
 }
+
+type PaymentSummary = Awaited<ReturnType<IPaymentClient['getPaymentSummariesByIds']>>[number];
 
 @QueryHandler(GetBookings)
 export class GetBookingsHandler implements IQueryHandler<GetBookings> {
@@ -95,20 +100,30 @@ export class GetBookingsHandler implements IQueryHandler<GetBookings> {
       return new PagedResult<BookingDto[] | null>(null, total);
     }
 
-    const result = await Promise.all(
-      bookingsEntity.map(async (booking) =>
-        toBookingDto(booking, booking.paymentId ? await this.tryGetPayment(booking.paymentId) : null)
-      )
+    if (!query.includePaymentSummary) {
+      const result = bookingsEntity.map((booking) => toBookingDto(booking, null));
+      return new PagedResult<BookingDto[] | null>(result, total);
+    }
+
+    const paymentIds = [...new Set(bookingsEntity.map((booking) => booking.paymentId).filter((id) => id > 0))];
+    const paymentSummaryById = await this.tryGetPaymentSummaries(paymentIds);
+    const result = bookingsEntity.map((booking) =>
+      toBookingDto(booking, booking.paymentId ? (paymentSummaryById.get(booking.paymentId) ?? null) : null)
     );
 
     return new PagedResult<BookingDto[] | null>(result, total);
   }
 
-  private async tryGetPayment(paymentId: number) {
+  private async tryGetPaymentSummaries(paymentIds: number[]): Promise<Map<number, PaymentSummary>> {
+    if (!paymentIds.length) {
+      return new Map<number, PaymentSummary>();
+    }
+
     try {
-      return await this.paymentClient.getPaymentById(paymentId);
+      const summaries = await this.paymentClient.getPaymentSummariesByIds(paymentIds);
+      return new Map(summaries.map((summary) => [summary.id, summary]));
     } catch {
-      return null;
+      return new Map<number, PaymentSummary>();
     }
   }
 }
