@@ -16,7 +16,7 @@ import { roleLabels } from '@utils/format';
 import { formatQuerySyncLabel } from '@utils/presentation';
 
 const { Header: AntHeader } = Layout;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const routeLabelMap: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -35,20 +35,6 @@ const routeLabelMap: Record<string, string> = {
   login: 'Đăng nhập'
 };
 
-const routeSubtitleMap: Record<string, string> = {
-  dashboard: 'Operations overview and live workspace context',
-  users: 'Identity directory and access management',
-  airports: 'Airport registry and travel network coverage',
-  aircrafts: 'Aircraft inventory and fleet setup',
-  flights: 'Flight schedules, routes, and seat orchestration',
-  seats: 'Seat inventory and cabin availability',
-  passengers: 'Passenger directory and travel profiles',
-  bookings: 'Booking ledger and purchase activity',
-  payments: 'Wallet payment and top-up operations',
-  wallet: 'Wallet balance and top-up requests',
-  reconcile: 'Manual wallet top-up approval operations'
-};
-
 export const Header = () => {
   const location = useLocation();
   const { user } = useAuthStore();
@@ -64,17 +50,28 @@ export const Header = () => {
       const isLast = index === parts.length - 1;
       const title = routeLabelMap[part] || part;
       return {
-        title: isLast ? <span>{title}</span> : <Link to={path}>{title}</Link>
+        title: isLast ? (
+          <span className="app-header__crumb app-header__crumb--current" title={title}>
+            {title}
+          </span>
+        ) : (
+          <Link className="app-header__crumb" to={path} title={title}>
+            {title}
+          </Link>
+        )
       };
     });
 
-    return [{ title: <Link to="/dashboard">Home</Link> }, ...items];
-  }, [location.pathname]);
-
-  const activeRoute = useMemo(() => {
-    const parts = location.pathname.split('/').filter(Boolean);
-    const match = [...parts].reverse().find((part) => routeLabelMap[part]);
-    return match || 'dashboard';
+    return [
+      {
+        title: (
+          <Link className="app-header__crumb" to="/dashboard" title="Home">
+            Home
+          </Link>
+        )
+      },
+      ...items
+    ];
   }, [location.pathname]);
 
   useEffect(() => {
@@ -89,67 +86,60 @@ export const Header = () => {
       style={{
         background: 'rgba(255,255,255,0.84)',
         minHeight: 88,
-        padding: '0 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        height: 'auto',
+        lineHeight: 'normal',
+        padding: '12px 20px',
         borderBottom: '1px solid rgba(160, 182, 204, 0.24)'
       }}
     >
-      <Space size={16} align="start" style={{ minWidth: 0 }}>
-        <Button
-          className="mobile-nav-trigger"
-          shape="circle"
-          icon={<MenuOutlined />}
-          onClick={() => setMobileSidebarOpen(true)}
-          style={{ display: 'none' }}
-        />
-        <Space direction="vertical" size={3} style={{ minWidth: 0 }}>
-          <Breadcrumb items={breadcrumbItems} />
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              {routeLabelMap[activeRoute]}
-            </Title>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {routeSubtitleMap[activeRoute] || 'SkyBooking operations workspace'}
-            </Text>
+      <div className="app-header-layout">
+        <div className="app-header__left">
+          <Button
+            className="mobile-nav-trigger"
+            shape="circle"
+            icon={<MenuOutlined />}
+            onClick={() => setMobileSidebarOpen(true)}
+            style={{ display: 'none' }}
+          />
+          <div className="app-header__breadcrumb">
+            <Breadcrumb items={breadcrumbItems} />
           </div>
-        </Space>
-      </Space>
+        </div>
 
-      <Space size={18}>
-        <Space size={8} align="center">
-          <ClockCircleOutlined style={{ color: '#486581' }} />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {isFetching > 0 ? 'Syncing modules...' : formatQuerySyncLabel(lastIdleSync)}
-          </Text>
-        </Space>
-
-        <Dropdown
-          menu={{
-            items: [
-              {
-                key: 'logout',
-                label: 'Đăng xuất',
-                icon: <LogoutOutlined />,
-                onClick: () => logoutMutation.mutate()
-              }
-            ]
-          }}
-        >
-          <Space style={{ cursor: 'pointer' }}>
-            <Avatar
-              style={{ background: 'linear-gradient(135deg, #0f6cbd 0%, #13908c 100%)' }}
-              icon={<UserOutlined />}
-            />
-            <Space size={4}>
-              <Text strong>{user?.name || 'Unknown'}</Text>
-              <Text type="secondary">({user ? roleLabels[user.role] : '-'})</Text>
-            </Space>
-            <DownOutlined />
+        <Space size={18} className="app-header__right">
+          <Space size={8} align="center">
+            <ClockCircleOutlined style={{ color: '#486581' }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {isFetching > 0 ? 'Syncing modules...' : formatQuerySyncLabel(lastIdleSync)}
+            </Text>
           </Space>
-        </Dropdown>
-      </Space>
+
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  label: 'Đăng xuất',
+                  icon: <LogoutOutlined />,
+                  onClick: () => logoutMutation.mutate()
+                }
+              ]
+            }}
+          >
+            <Space style={{ cursor: 'pointer' }}>
+              <Avatar
+                style={{ background: 'linear-gradient(135deg, #0f6cbd 0%, #13908c 100%)' }}
+                icon={<UserOutlined />}
+              />
+              <Space size={4}>
+                <Text strong>{user?.name || 'Unknown'}</Text>
+                <Text type="secondary">({user ? roleLabels[user.role] : '-'})</Text>
+              </Space>
+              <DownOutlined />
+            </Space>
+          </Dropdown>
+        </Space>
+      </div>
     </AntHeader>
   );
 };

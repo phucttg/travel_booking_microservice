@@ -1,17 +1,18 @@
-import { Grid, Layout } from 'antd';
+import { Layout } from 'antd';
 import { Outlet } from 'react-router-dom';
 import { Footer } from '@components/layout/Footer';
 import { Header } from '@components/layout/Header';
 import { Sidebar } from '@components/layout/Sidebar';
+import { useIsDesktop } from '@hooks/useResponsive';
 
 const { Content } = Layout;
 
 export const AppLayout = () => {
-  const screens = Grid.useBreakpoint();
+  const isDesktop = useIsDesktop();
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-      {screens.lg ? <Sidebar /> : <Sidebar mobile />}
+      {isDesktop ? <Sidebar /> : <Sidebar mobile />}
       <Layout style={{ background: 'transparent' }}>
         <Header />
         <Content className="app-shell__content">
