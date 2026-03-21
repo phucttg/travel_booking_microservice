@@ -31,6 +31,59 @@ export default defineConfig({
       '/api/v1/payment': { target: 'http://localhost:3377', changeOrigin: true }
     }
   },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) {
+            return undefined;
+          }
+
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/') ||
+            id.includes('/react-router/') ||
+            id.includes('/react-router-dom/')
+          ) {
+            return 'react-core';
+          }
+
+          if (id.includes('/@tanstack/react-query') || id.includes('/@tanstack/query-core')) {
+            return 'query';
+          }
+
+          if (id.includes('/recharts/') || id.includes('/dayjs/')) {
+            return 'charts';
+          }
+
+          if (id.includes('/@ant-design/icons/')) {
+            return 'antd-core';
+          }
+
+          if (id.includes('/@rc-component/') || id.includes('/rc-')) {
+            return 'antd-rc';
+          }
+
+          if (id.includes('/antd/')) {
+            return 'antd-core';
+          }
+
+          const packagePath = id.split('node_modules/')[1];
+          if (!packagePath) {
+            return 'vendor';
+          }
+
+          const packageName = packagePath.startsWith('@')
+            ? packagePath.split('/').slice(0, 2).join('/')
+            : packagePath.split('/')[0];
+
+          return `vendor-${packageName.replace('@', '').replace('/', '-')}`;
+        }
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',
