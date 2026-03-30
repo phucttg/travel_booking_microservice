@@ -14,15 +14,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RabbitmqPublisher = void 0;
 const common_1 = require("@nestjs/common");
-const rabbitmq_connection_1 = require("./rabbitmq-connection");
-const serilization_1 = require("../utils/serilization");
-const reflection_1 = require("../utils/reflection");
 const lodash_1 = require("lodash");
 const uuid_1 = require("uuid");
 const configs_1 = __importDefault(require("../configs/configs"));
-const async_retry_1 = __importDefault(require("async-retry"));
-const otel_diagnostics_provider_1 = require("../openTelemetry/otel-diagnostics-provider");
 const message_envelope_contract_1 = require("../contracts/message-envelope.contract");
+const otel_diagnostics_provider_1 = require("../openTelemetry/otel-diagnostics-provider");
+const rabbitmq_metrics_1 = require("../monitoring/rabbitmq.metrics");
+const reflection_1 = require("../utils/reflection");
+const serilization_1 = require("../utils/serilization");
+const rabbitmq_connection_1 = require("./rabbitmq-connection");
 const publishedMessages = [];
 const getServiceIdentifier = () => configs_1.default.serviceName || configs_1.default.opentelemetry.serviceName || 'unknown_service';
 let RabbitmqPublisher = class RabbitmqPublisher {
@@ -33,28 +33,40 @@ let RabbitmqPublisher = class RabbitmqPublisher {
         this.otelDiagnosticsProvider = otelDiagnosticsProvider;
     }
     async publishMessage(message, options = {}) {
+        const channel = await this.rabbitMQConnection.getPublisherChannel();
+        const tracer = this.otelDiagnosticsProvider.getTracer();
+        const exchangeName = options.exchangeName || (0, lodash_1.snakeCase)((0, reflection_1.getTypeName)(message));
+        const span = tracer.startSpan(`publish_message_${exchangeName}`);
+        const messageId = options.metadata?.messageId || (0, uuid_1.v4)();
+        const traceId = options.metadata?.traceId || span.spanContext().traceId || messageId;
+        const useEnvelope = options.useEnvelope ?? configs_1.default.rabbitmq.useEnvelope;
+        const payload = useEnvelope
+            ? (0, message_envelope_contract_1.createRabbitmqMessageEnvelope)(message, {
+                messageId,
+                traceId,
+                idempotencyKey: options.metadata?.idempotencyKey,
+                producer: options.metadata?.producer
+            })
+            : message;
+        if (useEnvelope &&
+            options.metadata?.occurredAt &&
+            typeof payload === 'object' &&
+            payload !== null &&
+            'occurredAt' in payload) {
+            payload.occurredAt = options.metadata.occurredAt;
+        }
+        const serializedMessage = (0, serilization_1.serializeObject)(payload);
         try {
-            await (0, async_retry_1.default)(async () => {
-                const channel = await this.rabbitMQConnection.getChannel();
-                const tracer = this.otelDiagnosticsProvider.getTracer();
-                const exchangeName = (0, lodash_1.snakeCase)((0, reflection_1.getTypeName)(message));
-                const span = tracer.startSpan(`publish_message_${exchangeName}`);
-                const messageId = (0, uuid_1.v4)().toString();
-                const traceId = span.spanContext().traceId || messageId;
-                const useEnvelope = options.useEnvelope ?? configs_1.default.rabbitmq.useEnvelope;
-                const payload = useEnvelope
-                    ? (0, message_envelope_contract_1.createRabbitmqMessageEnvelope)(message, {
-                        messageId,
-                        traceId,
-                        producer: getServiceIdentifier()
-                    })
-                    : message;
-                const serializedMessage = (0, serilization_1.serializeObject)(payload);
-                await channel.assertExchange(exchangeName, 'fanout', {
-                    durable: true
-                });
-                const messageProperties = {
-                    appId: getServiceIdentifier(),
+            await channel.assertExchange(exchangeName, 'fanout', {
+                durable: true
+            });
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    rabbitmq_metrics_1.rabbitmqPublishNackCounter.labels(exchangeName).inc();
+                    reject(new Error(`RabbitMQ publisher confirm timed out for exchange "${exchangeName}"`));
+                }, configs_1.default.rabbitmq.publishConfirmTimeoutMs);
+                channel.publish(exchangeName, '', Buffer.from(serializedMessage), {
+                    appId: options.metadata?.producer || getServiceIdentifier(),
                     contentType: 'application/json',
                     messageId,
                     persistent: true,
@@ -63,29 +75,36 @@ let RabbitmqPublisher = class RabbitmqPublisher {
                     headers: {
                         exchange: exchangeName,
                         traceId,
-                        schemaVersion: useEnvelope ? 1 : undefined
+                        schemaVersion: useEnvelope ? 1 : undefined,
+                        idempotencyKey: options.metadata?.idempotencyKey
                     }
-                };
-                channel.publish(exchangeName, '', Buffer.from(serializedMessage), messageProperties);
-                common_1.Logger.log(`Message: ${serializedMessage} sent with exchange name "${exchangeName}"`);
-                publishedMessages.push(exchangeName);
-                span.setAttributes({
-                    exchange: exchangeName,
-                    messageId,
-                    traceId,
-                    useEnvelope
+                }, (error) => {
+                    clearTimeout(timeout);
+                    if (error) {
+                        rabbitmq_metrics_1.rabbitmqPublishNackCounter.labels(exchangeName).inc();
+                        reject(error);
+                        return;
+                    }
+                    rabbitmq_metrics_1.rabbitmqPublishAckCounter.labels(exchangeName).inc();
+                    resolve();
                 });
-                span.end();
-            }, {
-                retries: configs_1.default.retry.count,
-                factor: configs_1.default.retry.factor,
-                minTimeout: configs_1.default.retry.minTimeout,
-                maxTimeout: configs_1.default.retry.maxTimeout
+            });
+            common_1.Logger.log(`Message sent with exchange "${exchangeName}" and messageId "${messageId}"`);
+            publishedMessages.push(exchangeName);
+            span.setAttributes({
+                exchange: exchangeName,
+                messageId,
+                traceId,
+                useEnvelope
             });
         }
         catch (error) {
-            common_1.Logger.error(error);
-            await this.rabbitMQConnection.closeChanel();
+            span.recordException(error);
+            common_1.Logger.error(`Failed to publish exchange "${exchangeName}"`, error);
+            throw error;
+        }
+        finally {
+            span.end();
         }
     }
     async isPublished(message) {

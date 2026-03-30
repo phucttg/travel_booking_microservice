@@ -3,11 +3,13 @@ import { RabbitmqPublisher } from './rabbitmq-publisher';
 import { RabbitmqConnection, RabbitmqOptions } from './rabbitmq-connection';
 import { RabbitmqConsumer } from './rabbitmq-subscriber';
 import { OpenTelemetryModule } from '../openTelemetry/opentelemetry.module';
+import { RuntimeHealthService } from '../health/runtime-health.service';
 
 @Global()
 @Module({
   imports: [OpenTelemetryModule],
   providers: [
+    RuntimeHealthService,
     RabbitmqPublisher,
     {
       provide: 'IRabbitmqConnection',
@@ -22,7 +24,7 @@ import { OpenTelemetryModule } from '../openTelemetry/opentelemetry.module';
       useClass: RabbitmqConsumer
     }
   ],
-  exports: ['IRabbitmqConnection', 'IRabbitmqPublisher', 'IRabbitmqConsumer']
+  exports: ['IRabbitmqConnection', 'IRabbitmqPublisher', 'IRabbitmqConsumer', RuntimeHealthService]
 })
 export class RabbitmqModule implements OnApplicationShutdown {
   constructor(private readonly rabbitmqConnection: RabbitmqConnection) {}

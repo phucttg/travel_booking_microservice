@@ -1,20 +1,31 @@
-import { RabbitmqConnection } from './rabbitmq-connection';
+import { OnModuleDestroy } from '@nestjs/common';
+import { ClassConstructor } from 'class-transformer';
 import { OtelDiagnosticsProvider } from '../openTelemetry/otel-diagnostics-provider';
 import { RabbitmqMessageEnvelope } from '../contracts/message-envelope.contract';
-import { ClassConstructor } from 'class-transformer';
+import { RabbitmqConnection } from './rabbitmq-connection';
 type MessageType<T> = T | ClassConstructor<T>;
-type handlerFunc<T> = (queue: string, message: T, envelope?: RabbitmqMessageEnvelope<T> | null) => Promise<void> | void;
+type HandlerFunc<T> = (queue: string, message: T, envelope?: RabbitmqMessageEnvelope<T> | null) => Promise<void> | void;
 export interface IRabbitmqConsumer {
-    consumeMessage<T>(type: MessageType<T>, handler: handlerFunc<T>): Promise<void>;
+    consumeMessage<T>(type: MessageType<T>, handler: HandlerFunc<T>): Promise<void>;
     isConsumed<T>(message: T): Promise<boolean>;
 }
-export declare class RabbitmqConsumer<T> implements IRabbitmqConsumer {
+export declare class RabbitmqConsumer<T> implements IRabbitmqConsumer, OnModuleDestroy {
     private readonly rabbitMQConnection;
     private readonly otelDiagnosticsProvider;
+    private readonly registrations;
+    private readonly recoveryIntervalRef;
+    private readonly channelIds;
     constructor(rabbitMQConnection: RabbitmqConnection, otelDiagnosticsProvider: OtelDiagnosticsProvider);
-    consumeMessage<T>(type: MessageType<T>, handler: handlerFunc<T>): Promise<void>;
+    onModuleDestroy(): void;
+    consumeMessage<T>(type: MessageType<T>, handler: HandlerFunc<T>): Promise<void>;
     isConsumed<T>(message: T): Promise<boolean>;
+    private ensureAllConsumers;
+    private ensureConsumer;
     private parseIncomingMessage;
     private getMessageClass;
+    private resolveMessageId;
+    private extractUserId;
+    private tryDeserializeMessage;
+    private resolveChannelId;
 }
 export {};

@@ -1,5 +1,6 @@
-import { OnModuleInit } from '@nestjs/common';
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import * as amqp from 'amqplib';
+import { RuntimeHealthService } from '../health/runtime-health.service';
 export declare class RabbitmqOptions {
     host: string;
     port: number;
@@ -9,19 +10,35 @@ export declare class RabbitmqOptions {
 }
 export interface IRabbitmqConnection {
     createConnection(options?: RabbitmqOptions): Promise<amqp.Connection>;
-    getChannel(): Promise<amqp.Channel>;
+    getPublisherChannel(): Promise<amqp.ConfirmChannel>;
+    getConsumerChannel(channelName: string): Promise<amqp.Channel>;
     closeChanel(): Promise<void>;
     closeConnection(): Promise<void>;
 }
-export declare class RabbitmqConnection implements OnModuleInit, IRabbitmqConnection {
+export declare class RabbitmqConnection implements OnModuleInit, OnModuleDestroy, IRabbitmqConnection {
     private readonly options?;
-    constructor(options?: RabbitmqOptions);
-    onModuleInit(): Promise<void>;
+    private readonly runtimeHealthService?;
+    private connection;
+    private publisherChannel;
+    private readonly consumerChannels;
+    private connectionPromise;
+    private isShuttingDown;
+    constructor(options?: RabbitmqOptions, runtimeHealthService?: RuntimeHealthService);
+    onModuleInit(): void;
+    onModuleDestroy(): Promise<void>;
     createConnection(options?: RabbitmqOptions): Promise<amqp.Connection>;
-    getChannel(): Promise<amqp.Channel>;
+    getPublisherChannel(): Promise<amqp.ConfirmChannel>;
+    getConsumerChannel(channelName: string): Promise<amqp.Channel>;
     closeChanel(): Promise<void>;
     closeConnection(): Promise<void>;
+    private ensureConnection;
+    private connectWithRetry;
+    private openConnection;
+    private attachConnectionHandlers;
+    private attachPublisherChannelHandlers;
+    private attachConsumerChannelHandlers;
+    private closeAllChannels;
+    private retryOptions;
     private isExpectedCloseError;
-    private closeChannelInternal;
-    private closeConnectionInternal;
+    private markRabbitmqState;
 }

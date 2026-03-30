@@ -1,7 +1,15 @@
-import { RabbitmqConnection } from './rabbitmq-connection';
 import { OtelDiagnosticsProvider } from '../openTelemetry/otel-diagnostics-provider';
+import { RabbitmqConnection } from './rabbitmq-connection';
 export interface PublishMessageOptions {
     useEnvelope?: boolean;
+    exchangeName?: string;
+    metadata?: {
+        messageId?: string;
+        traceId?: string;
+        idempotencyKey?: string;
+        occurredAt?: string;
+        producer?: string;
+    };
 }
 export interface IRabbitmqPublisher {
     publishMessage<T>(message: T, options?: PublishMessageOptions): Promise<void>;

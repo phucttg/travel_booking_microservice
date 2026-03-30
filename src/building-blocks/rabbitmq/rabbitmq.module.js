@@ -16,6 +16,7 @@ const rabbitmq_publisher_1 = require("./rabbitmq-publisher");
 const rabbitmq_connection_1 = require("./rabbitmq-connection");
 const rabbitmq_subscriber_1 = require("./rabbitmq-subscriber");
 const opentelemetry_module_1 = require("../openTelemetry/opentelemetry.module");
+const runtime_health_service_1 = require("../health/runtime-health.service");
 let RabbitmqModule = RabbitmqModule_1 = class RabbitmqModule {
     rabbitmqConnection;
     constructor(rabbitmqConnection) {
@@ -37,6 +38,7 @@ exports.RabbitmqModule = RabbitmqModule = RabbitmqModule_1 = __decorate([
     (0, common_1.Module)({
         imports: [opentelemetry_module_1.OpenTelemetryModule],
         providers: [
+            runtime_health_service_1.RuntimeHealthService,
             rabbitmq_publisher_1.RabbitmqPublisher,
             {
                 provide: 'IRabbitmqConnection',
@@ -51,7 +53,7 @@ exports.RabbitmqModule = RabbitmqModule = RabbitmqModule_1 = __decorate([
                 useClass: rabbitmq_subscriber_1.RabbitmqConsumer
             }
         ],
-        exports: ['IRabbitmqConnection', 'IRabbitmqPublisher', 'IRabbitmqConsumer']
+        exports: ['IRabbitmqConnection', 'IRabbitmqPublisher', 'IRabbitmqConsumer', runtime_health_service_1.RuntimeHealthService]
     }),
     __metadata("design:paramtypes", [rabbitmq_connection_1.RabbitmqConnection])
 ], RabbitmqModule);

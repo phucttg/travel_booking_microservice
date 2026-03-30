@@ -1,18 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RabbitmqConnection } from './rabbitmq-connection';
-import { serializeObject } from '../utils/serilization';
-import { getTypeName } from '../utils/reflection';
 import { snakeCase } from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
 import configs from '../configs/configs';
-import asyncRetry from 'async-retry';
-import { OtelDiagnosticsProvider } from '../openTelemetry/otel-diagnostics-provider';
 import { createRabbitmqMessageEnvelope } from '../contracts/message-envelope.contract';
+import { OtelDiagnosticsProvider } from '../openTelemetry/otel-diagnostics-provider';
+import {
+  rabbitmqPublishAckCounter,
+  rabbitmqPublishNackCounter
+} from '../monitoring/rabbitmq.metrics';
+import { getTypeName } from '../utils/reflection';
+import { serializeObject } from '../utils/serilization';
+import { RabbitmqConnection } from './rabbitmq-connection';
 
 const publishedMessages: string[] = [];
 
 export interface PublishMessageOptions {
   useEnvelope?: boolean;
+  exchangeName?: string;
+  metadata?: {
+    messageId?: string;
+    traceId?: string;
+    idempotencyKey?: string;
+    occurredAt?: string;
+    producer?: string;
+  };
 }
 
 export interface IRabbitmqPublisher {
@@ -31,33 +42,51 @@ export class RabbitmqPublisher implements IRabbitmqPublisher {
   ) {}
 
   async publishMessage<T>(message: T, options: PublishMessageOptions = {}): Promise<void> {
+    const channel = await this.rabbitMQConnection.getPublisherChannel();
+    const tracer = this.otelDiagnosticsProvider.getTracer();
+    const exchangeName = options.exchangeName || snakeCase(getTypeName(message));
+    const span = tracer.startSpan(`publish_message_${exchangeName}`);
+    const messageId = options.metadata?.messageId || uuidv4();
+    const traceId = options.metadata?.traceId || span.spanContext().traceId || messageId;
+    const useEnvelope = options.useEnvelope ?? configs.rabbitmq.useEnvelope;
+    const payload = useEnvelope
+      ? createRabbitmqMessageEnvelope(message, {
+          messageId,
+          traceId,
+          idempotencyKey: options.metadata?.idempotencyKey,
+          producer: options.metadata?.producer
+        })
+      : message;
+
+    if (
+      useEnvelope &&
+      options.metadata?.occurredAt &&
+      typeof payload === 'object' &&
+      payload !== null &&
+      'occurredAt' in payload
+    ) {
+      (payload as Record<string, unknown>).occurredAt = options.metadata.occurredAt;
+    }
+
+    const serializedMessage = serializeObject(payload);
+
     try {
-      await asyncRetry(
-        async () => {
-          const channel = await this.rabbitMQConnection.getChannel();
+      await channel.assertExchange(exchangeName, 'fanout', {
+        durable: true
+      });
 
-          const tracer = this.otelDiagnosticsProvider.getTracer();
-          const exchangeName = snakeCase(getTypeName(message));
-          const span = tracer.startSpan(`publish_message_${exchangeName}`);
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          rabbitmqPublishNackCounter.labels(exchangeName).inc();
+          reject(new Error(`RabbitMQ publisher confirm timed out for exchange "${exchangeName}"`));
+        }, configs.rabbitmq.publishConfirmTimeoutMs);
 
-          const messageId = uuidv4().toString();
-          const traceId = span.spanContext().traceId || messageId;
-          const useEnvelope = options.useEnvelope ?? configs.rabbitmq.useEnvelope;
-          const payload = useEnvelope
-            ? createRabbitmqMessageEnvelope(message, {
-                messageId,
-                traceId,
-                producer: getServiceIdentifier()
-              })
-            : message;
-          const serializedMessage = serializeObject(payload);
-
-          await channel.assertExchange(exchangeName, 'fanout', {
-            durable: true
-          });
-
-          const messageProperties = {
-            appId: getServiceIdentifier(),
+        channel.publish(
+          exchangeName,
+          '',
+          Buffer.from(serializedMessage),
+          {
+            appId: options.metadata?.producer || getServiceIdentifier(),
             contentType: 'application/json',
             messageId,
             persistent: true,
@@ -66,40 +95,44 @@ export class RabbitmqPublisher implements IRabbitmqPublisher {
             headers: {
               exchange: exchangeName,
               traceId,
-              schemaVersion: useEnvelope ? 1 : undefined
+              schemaVersion: useEnvelope ? 1 : undefined,
+              idempotencyKey: options.metadata?.idempotencyKey
             }
-          };
+          },
+          (error) => {
+            clearTimeout(timeout);
 
-          channel.publish(exchangeName, '', Buffer.from(serializedMessage), messageProperties);
+            if (error) {
+              rabbitmqPublishNackCounter.labels(exchangeName).inc();
+              reject(error);
+              return;
+            }
 
-          Logger.log(`Message: ${serializedMessage} sent with exchange name "${exchangeName}"`);
+            rabbitmqPublishAckCounter.labels(exchangeName).inc();
+            resolve();
+          }
+        );
+      });
 
-          publishedMessages.push(exchangeName);
-
-          span.setAttributes({
-            exchange: exchangeName,
-            messageId,
-            traceId,
-            useEnvelope
-          });
-          span.end();
-        },
-        {
-          retries: configs.retry.count,
-          factor: configs.retry.factor,
-          minTimeout: configs.retry.minTimeout,
-          maxTimeout: configs.retry.maxTimeout
-        }
-      );
+      Logger.log(`Message sent with exchange "${exchangeName}" and messageId "${messageId}"`);
+      publishedMessages.push(exchangeName);
+      span.setAttributes({
+        exchange: exchangeName,
+        messageId,
+        traceId,
+        useEnvelope
+      });
     } catch (error) {
-      Logger.error(error);
-      await this.rabbitMQConnection.closeChanel();
+      span.recordException(error as Error);
+      Logger.error(`Failed to publish exchange "${exchangeName}"`, error as Error);
+      throw error;
+    } finally {
+      span.end();
     }
   }
 
   async isPublished<T>(message: T): Promise<boolean> {
     const exchangeName = snakeCase(getTypeName(message));
-
     return Promise.resolve(publishedMessages.includes(exchangeName));
   }
 }

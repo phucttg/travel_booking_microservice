@@ -14,103 +14,46 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RabbitmqConsumer = void 0;
 const common_1 = require("@nestjs/common");
-const rabbitmq_connection_1 = require("./rabbitmq-connection");
-const reflection_1 = require("../utils/reflection");
+const crypto_1 = require("crypto");
 const lodash_1 = require("lodash");
 const serilization_1 = require("../utils/serilization");
 const time_1 = require("../utils/time");
 const configs_1 = __importDefault(require("../configs/configs"));
-const async_retry_1 = __importDefault(require("async-retry"));
 const otel_diagnostics_provider_1 = require("../openTelemetry/otel-diagnostics-provider");
 const message_envelope_contract_1 = require("../contracts/message-envelope.contract");
 const validation_utils_1 = require("../validation/validation.utils");
+const reflection_1 = require("../utils/reflection");
+const rabbitmq_connection_1 = require("./rabbitmq-connection");
 const consumedMessages = [];
 const getServiceIdentifier = () => configs_1.default.serviceName || configs_1.default.opentelemetry.serviceName || 'unknown_service';
 let RabbitmqConsumer = class RabbitmqConsumer {
     rabbitMQConnection;
     otelDiagnosticsProvider;
+    registrations = new Map();
+    recoveryIntervalRef;
+    channelIds = new WeakMap();
     constructor(rabbitMQConnection, otelDiagnosticsProvider) {
         this.rabbitMQConnection = rabbitMQConnection;
         this.otelDiagnosticsProvider = otelDiagnosticsProvider;
+        this.recoveryIntervalRef = setInterval(() => {
+            void this.ensureAllConsumers();
+        }, 5000);
+    }
+    onModuleDestroy() {
+        clearInterval(this.recoveryIntervalRef);
     }
     async consumeMessage(type, handler) {
-        try {
-            await (0, async_retry_1.default)(async () => {
-                const channel = await this.rabbitMQConnection.getChannel();
-                const tracer = this.otelDiagnosticsProvider.getTracer();
-                const exchangeName = (0, lodash_1.snakeCase)((0, reflection_1.getTypeName)(type));
-                const queueName = `${getServiceIdentifier()}.${exchangeName}`;
-                const deadLetterExchangeName = `${exchangeName}.dlx`;
-                const deadLetterQueueName = `${queueName}.dlq`;
-                await channel.assertExchange(exchangeName, 'fanout', {
-                    durable: true
-                });
-                await channel.assertExchange(deadLetterExchangeName, 'direct', {
-                    durable: true
-                });
-                await channel.assertQueue(deadLetterQueueName, {
-                    durable: true
-                });
-                await channel.bindQueue(deadLetterQueueName, deadLetterExchangeName, queueName);
-                const q = await channel.assertQueue(queueName, {
-                    durable: true,
-                    arguments: {
-                        'x-dead-letter-exchange': deadLetterExchangeName,
-                        'x-dead-letter-routing-key': queueName
-                    }
-                });
-                await channel.bindQueue(q.queue, exchangeName, '');
-                await channel.prefetch(1);
-                common_1.Logger.log(`Waiting for messages with exchange name "${exchangeName}" on queue "${q.queue}".`);
-                await channel.consume(q.queue, async (message) => {
-                    if (message === null) {
-                        return;
-                    }
-                    const span = tracer.startSpan(`receive_message_${exchangeName}`);
-                    const messageContent = message.content.toString();
-                    const headers = message.properties.headers || {};
-                    try {
-                        const parsedMessage = this.parseIncomingMessage(type, messageContent);
-                        const deathCount = Array.isArray(headers['x-death']) ? headers['x-death'].length : 0;
-                        await handler(q.queue, parsedMessage.payload, parsedMessage.envelope);
-                        common_1.Logger.log(`Message delivered to queue ${q.queue} with exchange ${exchangeName}: ${messageContent}`);
-                        channel.ack(message);
-                        consumedMessages.push(exchangeName);
-                        span.setAttributes({
-                            queue: q.queue,
-                            exchange: exchangeName,
-                            legacyPayload: parsedMessage.isLegacy,
-                            deathCount,
-                            messageId: parsedMessage.envelope?.messageId || message.properties.messageId || 'unknown'
-                        });
-                    }
-                    catch (error) {
-                        common_1.Logger.error((0, serilization_1.serializeObject)({
-                            exchange: exchangeName,
-                            queue: q.queue,
-                            messageId: this.resolveMessageId(message.properties.messageId, messageContent),
-                            userId: this.extractUserId(messageContent),
-                            content: messageContent,
-                            error: error instanceof Error ? error.message : String(error)
-                        }));
-                        channel.nack(message, false, false);
-                        span.recordException(error);
-                    }
-                    finally {
-                        span.end();
-                    }
-                }, { noAck: false });
-            }, {
-                retries: configs_1.default.retry.count,
-                factor: configs_1.default.retry.factor,
-                minTimeout: configs_1.default.retry.minTimeout,
-                maxTimeout: configs_1.default.retry.maxTimeout
-            });
-        }
-        catch (error) {
-            common_1.Logger.error(error);
-            await this.rabbitMQConnection.closeChanel();
-        }
+        const exchangeName = (0, lodash_1.snakeCase)((0, reflection_1.getTypeName)(type));
+        const queueName = `${getServiceIdentifier()}.${exchangeName}`;
+        const registration = {
+            type,
+            handler,
+            exchangeName,
+            queueName,
+            channelName: queueName
+        };
+        this.registrations.set(queueName, registration);
+        void this.ensureConsumer(registration);
     }
     async isConsumed(message) {
         const timeoutTime = 30000;
@@ -128,6 +71,89 @@ let RabbitmqConsumer = class RabbitmqConsumer {
             const exchangeName = (0, lodash_1.snakeCase)((0, reflection_1.getTypeName)(message));
             isConsumed = consumedMessages.includes(exchangeName);
             timeOutExpired = Date.now() - startTime > timeoutTime;
+        }
+    }
+    async ensureAllConsumers() {
+        for (const registration of this.registrations.values()) {
+            await this.ensureConsumer(registration);
+        }
+    }
+    async ensureConsumer(registration) {
+        try {
+            const channel = await this.rabbitMQConnection.getConsumerChannel(registration.channelName);
+            const channelId = this.resolveChannelId(channel);
+            if (registration.consumerTag && registration.boundChannel?.channelId === channelId) {
+                return;
+            }
+            const deadLetterExchangeName = `${registration.exchangeName}.dlx`;
+            const deadLetterQueueName = `${registration.queueName}.dlq`;
+            await channel.assertExchange(registration.exchangeName, 'fanout', {
+                durable: true
+            });
+            await channel.assertExchange(deadLetterExchangeName, 'direct', {
+                durable: true
+            });
+            await channel.assertQueue(deadLetterQueueName, {
+                durable: true
+            });
+            await channel.bindQueue(deadLetterQueueName, deadLetterExchangeName, registration.queueName);
+            const queue = await channel.assertQueue(registration.queueName, {
+                durable: true,
+                arguments: {
+                    'x-dead-letter-exchange': deadLetterExchangeName,
+                    'x-dead-letter-routing-key': registration.queueName
+                }
+            });
+            await channel.bindQueue(queue.queue, registration.exchangeName, '');
+            await channel.prefetch(1);
+            common_1.Logger.log(`Waiting for messages with exchange "${registration.exchangeName}" on queue "${queue.queue}".`);
+            const consumerResult = await channel.consume(queue.queue, async (message) => {
+                if (message === null) {
+                    return;
+                }
+                const tracer = this.otelDiagnosticsProvider.getTracer();
+                const span = tracer.startSpan(`receive_message_${registration.exchangeName}`);
+                const messageContent = message.content.toString();
+                const headers = message.properties.headers || {};
+                try {
+                    const parsedMessage = this.parseIncomingMessage(registration.type, messageContent);
+                    const deathCount = Array.isArray(headers['x-death']) ? headers['x-death'].length : 0;
+                    if (parsedMessage.isLegacy) {
+                        common_1.Logger.warn(`Legacy raw event consumed on exchange "${registration.exchangeName}". Compatibility window still active.`);
+                    }
+                    await registration.handler(queue.queue, parsedMessage.payload, parsedMessage.envelope);
+                    common_1.Logger.log(`Message delivered to queue ${queue.queue} with exchange ${registration.exchangeName}: ${messageContent}`);
+                    channel.ack(message);
+                    consumedMessages.push(registration.exchangeName);
+                    span.setAttributes({
+                        queue: queue.queue,
+                        exchange: registration.exchangeName,
+                        legacyPayload: parsedMessage.isLegacy,
+                        deathCount,
+                        messageId: parsedMessage.envelope?.messageId || message.properties.messageId || 'unknown'
+                    });
+                }
+                catch (error) {
+                    common_1.Logger.error((0, serilization_1.serializeObject)({
+                        exchange: registration.exchangeName,
+                        queue: queue.queue,
+                        messageId: this.resolveMessageId(message.properties.messageId, messageContent),
+                        userId: this.extractUserId(messageContent),
+                        content: messageContent,
+                        error: error instanceof Error ? error.message : String(error)
+                    }));
+                    channel.nack(message, false, false);
+                    span.recordException(error);
+                }
+                finally {
+                    span.end();
+                }
+            }, { noAck: false });
+            registration.boundChannel = { channelId };
+            registration.consumerTag = consumerResult.consumerTag;
+        }
+        catch (error) {
+            common_1.Logger.error(`Failed to ensure consumer for exchange "${registration.exchangeName}"`, error);
         }
     }
     parseIncomingMessage(type, content) {
@@ -191,6 +217,15 @@ let RabbitmqConsumer = class RabbitmqConsumer {
         catch {
             return null;
         }
+    }
+    resolveChannelId(channel) {
+        const existingChannelId = this.channelIds.get(channel);
+        if (existingChannelId) {
+            return existingChannelId;
+        }
+        const channelId = (0, crypto_1.randomUUID)();
+        this.channelIds.set(channel, channelId);
+        return channelId;
     }
 };
 exports.RabbitmqConsumer = RabbitmqConsumer;

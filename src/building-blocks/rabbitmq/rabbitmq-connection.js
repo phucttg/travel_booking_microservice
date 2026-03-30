@@ -51,8 +51,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RabbitmqConnection = exports.RabbitmqOptions = void 0;
 const common_1 = require("@nestjs/common");
 const amqp = __importStar(require("amqplib"));
-const configs_1 = __importDefault(require("../configs/configs"));
 const async_retry_1 = __importDefault(require("async-retry"));
+const configs_1 = __importDefault(require("../configs/configs"));
+const runtime_health_service_1 = require("../health/runtime-health.service");
+const rabbitmq_metrics_1 = require("../monitoring/rabbitmq.metrics");
 class RabbitmqOptions {
     host;
     port;
@@ -63,97 +65,244 @@ class RabbitmqOptions {
     }
 }
 exports.RabbitmqOptions = RabbitmqOptions;
-let connection = null;
-let channel = null;
-let isShuttingDown = false;
 let RabbitmqConnection = class RabbitmqConnection {
     options;
-    constructor(options) {
+    runtimeHealthService;
+    connection = null;
+    publisherChannel = null;
+    consumerChannels = new Map();
+    connectionPromise = null;
+    isShuttingDown = false;
+    constructor(options, runtimeHealthService) {
         this.options = options;
+        this.runtimeHealthService = runtimeHealthService;
     }
-    async onModuleInit() {
-        isShuttingDown = false;
-        await this.createConnection(this.options);
+    onModuleInit() {
+        this.isShuttingDown = false;
+        this.markRabbitmqState('degraded', {
+            message: 'Waiting for initial RabbitMQ connection'
+        });
+        void this.createConnection(this.options);
+    }
+    async onModuleDestroy() {
+        await this.closeConnection();
     }
     async createConnection(options) {
-        if (isShuttingDown) {
-            return connection;
-        }
-        if (!connection) {
-            try {
-                const host = options?.host ?? configs_1.default.rabbitmq.host;
-                const port = options?.port ?? configs_1.default.rabbitmq.port;
-                await (0, async_retry_1.default)(async () => {
-                    connection = await amqp.connect(`amqp://${host}:${port}`, {
-                        username: options?.username ?? configs_1.default.rabbitmq.username,
-                        password: options?.password ?? configs_1.default.rabbitmq.password
-                    });
-                }, {
-                    retries: configs_1.default.retry.count,
-                    factor: configs_1.default.retry.factor,
-                    minTimeout: configs_1.default.retry.minTimeout,
-                    maxTimeout: configs_1.default.retry.maxTimeout
-                });
-                connection.on('error', async (error) => {
-                    if (isShuttingDown) {
-                        common_1.Logger.warn(`Connection error observed during shutdown: ${error}`);
-                        return;
-                    }
-                    common_1.Logger.error(`Error occurred on connection: ${error}`);
-                    await this.closeConnectionInternal(false);
-                    await this.createConnection();
-                });
-                connection.on('close', () => {
-                    connection = null;
-                    channel = null;
-                });
-            }
-            catch (error) {
-                throw new Error('Rabbitmq connection is failed!');
-            }
-        }
-        return connection;
+        return await this.ensureConnection(options);
     }
-    async getChannel() {
-        try {
-            if (!connection) {
-                throw new Error('Rabbitmq connection is failed!');
-            }
-            if (!channel) {
-                await (0, async_retry_1.default)(async () => {
-                    channel = await connection.createChannel();
-                    common_1.Logger.log('Channel Created successfully');
-                }, {
-                    retries: configs_1.default.retry.count,
-                    factor: configs_1.default.retry.factor,
-                    minTimeout: configs_1.default.retry.minTimeout,
-                    maxTimeout: configs_1.default.retry.maxTimeout
-                });
-                channel.on('error', async (error) => {
-                    if (isShuttingDown) {
-                        common_1.Logger.warn(`Error occurred on channel during shutdown: ${error}`);
-                        return;
-                    }
-                    common_1.Logger.error(`Error occurred on channel: ${error}`);
-                    await this.closeChannelInternal(false);
-                    await this.getChannel();
-                });
-            }
-            return channel;
+    async getPublisherChannel() {
+        const activeConnection = await this.ensureConnection(this.options);
+        if (this.publisherChannel) {
+            return this.publisherChannel;
         }
-        catch (error) {
-            if (isShuttingDown) {
-                common_1.Logger.warn('Failed to get channel during shutdown');
-                return;
-            }
-            common_1.Logger.error('Failed to get channel!');
+        const channel = await (0, async_retry_1.default)(async () => await activeConnection.createConfirmChannel(), this.retryOptions());
+        this.publisherChannel = channel;
+        rabbitmq_metrics_1.rabbitmqPublisherChannelStateGauge.set(1);
+        this.attachPublisherChannelHandlers(channel);
+        return channel;
+    }
+    async getConsumerChannel(channelName) {
+        const activeConnection = await this.ensureConnection(this.options);
+        const existingChannel = this.consumerChannels.get(channelName);
+        if (existingChannel) {
+            return existingChannel;
         }
+        const channel = await (0, async_retry_1.default)(async () => await activeConnection.createChannel(), this.retryOptions());
+        this.consumerChannels.set(channelName, channel);
+        rabbitmq_metrics_1.rabbitmqConsumerChannelStateGauge.labels(channelName).set(1);
+        this.attachConsumerChannelHandlers(channelName, channel);
+        return channel;
     }
     async closeChanel() {
-        await this.closeChannelInternal(isShuttingDown);
+        await this.closeAllChannels(true);
     }
     async closeConnection() {
-        await this.closeConnectionInternal(true);
+        this.isShuttingDown = true;
+        await this.closeAllChannels(true);
+        if (!this.connection) {
+            rabbitmq_metrics_1.rabbitmqConnectionStateGauge.set(0);
+            return;
+        }
+        const connection = this.connection;
+        this.connection = null;
+        try {
+            await connection.close();
+            common_1.Logger.log('RabbitMQ connection closed gracefully');
+        }
+        catch (error) {
+            if (!this.isExpectedCloseError(error)) {
+                common_1.Logger.error('RabbitMQ connection close failed', error);
+            }
+        }
+        finally {
+            rabbitmq_metrics_1.rabbitmqConnectionStateGauge.set(0);
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ connection closed'
+            });
+        }
+    }
+    async ensureConnection(options) {
+        if (this.connection) {
+            return this.connection;
+        }
+        if (this.connectionPromise) {
+            return await this.connectionPromise;
+        }
+        this.connectionPromise = this.connectWithRetry(options);
+        try {
+            return await this.connectionPromise;
+        }
+        finally {
+            this.connectionPromise = null;
+        }
+    }
+    async connectWithRetry(options) {
+        try {
+            const connection = await (0, async_retry_1.default)(async () => await this.openConnection(options), this.retryOptions());
+            this.connection = connection;
+            rabbitmq_metrics_1.rabbitmqConnectionStateGauge.set(1);
+            this.markRabbitmqState('up', {
+                host: options?.host ?? configs_1.default.rabbitmq.host,
+                port: options?.port ?? configs_1.default.rabbitmq.port
+            });
+            return connection;
+        }
+        catch (error) {
+            rabbitmq_metrics_1.rabbitmqConnectionStateGauge.set(0);
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ connection unavailable',
+                error: error instanceof Error ? error.message : String(error)
+            });
+            throw error;
+        }
+    }
+    async openConnection(options) {
+        const host = options?.host ?? configs_1.default.rabbitmq.host;
+        const port = options?.port ?? configs_1.default.rabbitmq.port;
+        const connection = await amqp.connect(`amqp://${host}:${port}`, {
+            username: options?.username ?? configs_1.default.rabbitmq.username,
+            password: options?.password ?? configs_1.default.rabbitmq.password
+        });
+        this.attachConnectionHandlers(connection);
+        return connection;
+    }
+    attachConnectionHandlers(connection) {
+        connection.on('error', (error) => {
+            if (this.isShuttingDown) {
+                common_1.Logger.warn(`RabbitMQ connection error observed during shutdown: ${error}`);
+                return;
+            }
+            common_1.Logger.error(`RabbitMQ connection error: ${error}`);
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ connection error',
+                error: error instanceof Error ? error.message : String(error)
+            });
+        });
+        connection.on('close', () => {
+            this.connection = null;
+            this.publisherChannel = null;
+            rabbitmq_metrics_1.rabbitmqConnectionStateGauge.set(0);
+            rabbitmq_metrics_1.rabbitmqPublisherChannelStateGauge.set(0);
+            for (const channelName of this.consumerChannels.keys()) {
+                rabbitmq_metrics_1.rabbitmqConsumerChannelStateGauge.labels(channelName).set(0);
+            }
+            this.consumerChannels.clear();
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ connection closed'
+            });
+            if (!this.isShuttingDown) {
+                void this.createConnection(this.options).catch((error) => {
+                    common_1.Logger.error('Background RabbitMQ reconnect failed', error);
+                });
+            }
+        });
+    }
+    attachPublisherChannelHandlers(channel) {
+        channel.on('error', (error) => {
+            if (this.isShuttingDown) {
+                common_1.Logger.warn(`RabbitMQ publisher channel error observed during shutdown: ${error}`);
+                return;
+            }
+            if (this.publisherChannel === channel) {
+                this.publisherChannel = null;
+            }
+            rabbitmq_metrics_1.rabbitmqPublisherChannelStateGauge.set(0);
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ publisher channel error',
+                error: error instanceof Error ? error.message : String(error)
+            });
+        });
+        channel.on('close', () => {
+            if (this.publisherChannel === channel) {
+                this.publisherChannel = null;
+            }
+            rabbitmq_metrics_1.rabbitmqPublisherChannelStateGauge.set(0);
+            this.markRabbitmqState('degraded', {
+                message: 'RabbitMQ publisher channel closed'
+            });
+        });
+    }
+    attachConsumerChannelHandlers(channelName, channel) {
+        channel.on('error', (error) => {
+            if (this.isShuttingDown) {
+                common_1.Logger.warn(`RabbitMQ consumer channel "${channelName}" error observed during shutdown: ${error}`);
+                return;
+            }
+            if (this.consumerChannels.get(channelName) === channel) {
+                this.consumerChannels.delete(channelName);
+            }
+            rabbitmq_metrics_1.rabbitmqConsumerChannelStateGauge.labels(channelName).set(0);
+            this.markRabbitmqState('degraded', {
+                message: `RabbitMQ consumer channel "${channelName}" error`,
+                error: error instanceof Error ? error.message : String(error)
+            });
+        });
+        channel.on('close', () => {
+            if (this.consumerChannels.get(channelName) === channel) {
+                this.consumerChannels.delete(channelName);
+            }
+            rabbitmq_metrics_1.rabbitmqConsumerChannelStateGauge.labels(channelName).set(0);
+            this.markRabbitmqState('degraded', {
+                message: `RabbitMQ consumer channel "${channelName}" closed`
+            });
+        });
+    }
+    async closeAllChannels(shutdownMode) {
+        const publisherChannel = this.publisherChannel;
+        this.publisherChannel = null;
+        if (publisherChannel) {
+            try {
+                await publisherChannel.close();
+            }
+            catch (error) {
+                if (!shutdownMode || !this.isExpectedCloseError(error)) {
+                    common_1.Logger.error('RabbitMQ publisher channel close failed', error);
+                }
+            }
+        }
+        rabbitmq_metrics_1.rabbitmqPublisherChannelStateGauge.set(0);
+        for (const [channelName, consumerChannel] of this.consumerChannels.entries()) {
+            try {
+                await consumerChannel.close();
+            }
+            catch (error) {
+                if (!shutdownMode || !this.isExpectedCloseError(error)) {
+                    common_1.Logger.error(`RabbitMQ consumer channel "${channelName}" close failed`, error);
+                }
+            }
+            finally {
+                rabbitmq_metrics_1.rabbitmqConsumerChannelStateGauge.labels(channelName).set(0);
+            }
+        }
+        this.consumerChannels.clear();
+    }
+    retryOptions() {
+        return {
+            retries: configs_1.default.retry.count,
+            factor: configs_1.default.retry.factor,
+            minTimeout: configs_1.default.retry.minTimeout,
+            maxTimeout: configs_1.default.retry.maxTimeout
+        };
     }
     isExpectedCloseError(error) {
         const message = error instanceof Error ? error.message : String(error ?? '');
@@ -162,55 +311,15 @@ let RabbitmqConnection = class RabbitmqConnection {
             normalizedMessage.includes('closing') ||
             normalizedMessage.includes('unexpected close'));
     }
-    async closeChannelInternal(shutdownMode) {
-        try {
-            if (channel) {
-                const activeChannel = channel;
-                channel = null;
-                await activeChannel.close();
-                common_1.Logger.log('Channel closed successfully');
-            }
-        }
-        catch (error) {
-            if (shutdownMode && this.isExpectedCloseError(error)) {
-                common_1.Logger.warn('Channel was already closed during shutdown');
-                return;
-            }
-            common_1.Logger.error('Channel close failed!');
-        }
-        finally {
-            channel = null;
-        }
-    }
-    async closeConnectionInternal(shutdownMode) {
-        if (shutdownMode) {
-            isShuttingDown = true;
-        }
-        await this.closeChannelInternal(shutdownMode || isShuttingDown);
-        try {
-            if (connection) {
-                const activeConnection = connection;
-                connection = null;
-                await activeConnection.close();
-                common_1.Logger.log('Connection Rabbitmq closed gracefully');
-            }
-        }
-        catch (error) {
-            if ((shutdownMode || isShuttingDown) && this.isExpectedCloseError(error)) {
-                common_1.Logger.warn('Connection Rabbitmq was already closed during shutdown');
-                return;
-            }
-            common_1.Logger.error('Connection Rabbitmq close failed!');
-        }
-        finally {
-            connection = null;
-        }
+    markRabbitmqState(state, details) {
+        this.runtimeHealthService?.setComponentStatus('rabbitmq', state, details);
     }
 };
 exports.RabbitmqConnection = RabbitmqConnection;
 exports.RabbitmqConnection = RabbitmqConnection = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(RabbitmqOptions)),
-    __metadata("design:paramtypes", [RabbitmqOptions])
+    __metadata("design:paramtypes", [RabbitmqOptions,
+        runtime_health_service_1.RuntimeHealthService])
 ], RabbitmqConnection);
 //# sourceMappingURL=rabbitmq-connection.js.map
