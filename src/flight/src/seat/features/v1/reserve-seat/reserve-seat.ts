@@ -2,6 +2,7 @@ import { ISeatRepository } from '@/data/repositories/seatRepository';
 import { IFlightRepository } from '@/data/repositories/flightRepository';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -24,13 +25,15 @@ import {
 } from 'building-blocks/contracts/flight.contract';
 import { ReserveSeatRequestDto } from '@/seat/dtos/reserve-seat-request.dto';
 import mapper from '@/seat/mappings';
-import { SeatDto } from '@/seat/dtos/seat.dto';
+import { SeatReservationDto } from '@/seat/dtos/seat-reservation.dto';
 import { isFlightBookable } from '@/flight/utils/flight-status';
 import { calculateSeatPrice } from '@/seat/utils/seat-pricing';
+import { SeatState } from '@/seat/enums/seat-state.enum';
 
 export class ReserveSeat {
   seatNumber?: string;
   flightId: number;
+  holdUntil?: Date;
 
   constructor(request: Partial<ReserveSeat> = {}) {
     Object.assign(this, request);
@@ -56,7 +59,7 @@ export class ReserveSeatController {
   public async reserveSeat(
     @Body() request: ReserveSeatRequestDto,
     @Res() res: Response
-  ): Promise<SeatDto> {
+  ): Promise<SeatReservationDto> {
     const result = await this.commandBus.execute(new ReserveSeat(request));
 
     res.status(HttpStatus.OK).send(result);
@@ -72,7 +75,7 @@ export class ReserveSeatHandler implements ICommandHandler<ReserveSeat> {
     @Inject('ISeatRepository') private readonly seatRepository: ISeatRepository
   ) {}
 
-  async execute(command: ReserveSeat): Promise<SeatDto> {
+  async execute(command: ReserveSeat): Promise<SeatReservationDto> {
     const existFlight = await this.flightRepository.findFlightById(command.flightId);
 
     if (existFlight == null) {
@@ -83,9 +86,13 @@ export class ReserveSeatHandler implements ICommandHandler<ReserveSeat> {
       throw new NotFoundException('Flight is no longer available for booking');
     }
 
+    if (command.holdUntil && new Date(command.holdUntil) <= new Date()) {
+      throw new BadRequestException('holdUntil must be in the future');
+    }
+
     const seat = command.seatNumber
-      ? await this.seatRepository.reserveSeat(command.flightId, command.seatNumber)
-      : await this.seatRepository.reserveEconomySeat(command.flightId);
+      ? await this.seatRepository.reserveSeat(command.flightId, command.seatNumber, command.holdUntil)
+      : await this.seatRepository.reserveEconomySeat(command.flightId, command.holdUntil);
 
     if (seat == null) {
       if (!command.seatNumber && (await this.seatRepository.hasAvailablePremiumSeats(command.flightId))) {
@@ -98,9 +105,11 @@ export class ReserveSeatHandler implements ICommandHandler<ReserveSeat> {
       throw new NotFoundException(command.seatNumber ? 'Seat not available!' : 'No seat available!');
     }
 
-    const seatDto = mapper.map<Seat, SeatDto>(seat, new SeatDto());
+    const seatDto = mapper.map<Seat, SeatReservationDto>(seat, new SeatReservationDto());
     seatDto.price = calculateSeatPrice(existFlight.price, seat.seatClass);
     seatDto.currency = 'VND';
+    seatDto.holdToken = seat.seatState === SeatState.HELD ? seat.holdToken : null;
+    seatDto.holdExpiresAt = seat.seatState === SeatState.HELD ? seat.holdExpiresAt : null;
 
     await this.rabbitmqPublisher.publishMessage(new SeatReserved(seatDto));
 

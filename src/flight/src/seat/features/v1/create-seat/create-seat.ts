@@ -25,6 +25,7 @@ import { RolesGuard } from '@/common/auth/roles.guard';
 import mapper from '@/seat/mappings';
 import { CreateSeatRequestDto } from '@/seat/dtos/create-seat-request.dto';
 import { SeatClass } from '@/seat/enums/seat-class.enum';
+import { SeatState } from '@/seat/enums/seat-state.enum';
 import { SeatType } from '@/seat/enums/seat-type.enum';
 
 export class CreateSeat {
@@ -93,7 +94,8 @@ export class CreateSeatHandler implements ICommandHandler<CreateSeat> {
         seatNumber: command.seatNumber,
         seatClass: command.seatClass,
         seatType: command.seatType,
-        isReserved: false
+        isReserved: false,
+        seatState: SeatState.AVAILABLE
       })
     );
 

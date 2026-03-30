@@ -39,6 +39,10 @@ export class Mapper extends TypeMapper {
         (dest) => dest.isReserved
       )
       .map(
+        (src) => src.seatState,
+        (dest) => dest.seatState
+      )
+      .map(
         (src) => src.flightId,
         (dest) => dest.flightId
       )

@@ -17,6 +17,10 @@ import {
   GetSeatsByFlightController,
   GetSeatsByFlightHandler
 } from '@/seat/features/v1/get-seats-by-flight/get-seats-by-flight';
+import {
+  GetSeatStateController,
+  GetSeatStateHandler
+} from '@/seat/features/v1/get-seat-state/get-seat-state';
 import { ReserveSeatController, ReserveSeatHandler } from '@/seat/features/v1/reserve-seat/reserve-seat';
 import {
   ReconcileMissingSeatsController,
@@ -25,9 +29,11 @@ import {
 import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
 import { RolesGuard } from '@/common/auth/roles.guard';
 import { IRabbitmqConsumer } from 'building-blocks/rabbitmq/rabbitmq-subscriber';
-import { SeatReleaseRequested } from 'building-blocks/contracts/flight.contract';
+import { SeatCommitRequested, SeatReleaseRequested } from 'building-blocks/contracts/flight.contract';
 import { SeatReleaseRequestedConsumerHandler } from '@/seat/consumers/seat-release-requested.consumer';
 import { ProcessedMessageRepository } from '@/data/repositories/processedMessageRepository';
+import { SeatCommitRequestedConsumerHandler } from '@/seat/consumers/seat-commit-requested.consumer';
+import { SeatHoldSweeperService } from '@/seat/services/seat-hold-sweeper.service';
 
 @Module({
   imports: [
@@ -39,6 +45,7 @@ import { ProcessedMessageRepository } from '@/data/repositories/processedMessage
     CreateSeatController,
     GetAvailableSeatsController,
     GetSeatsByFlightController,
+    GetSeatStateController,
     ReserveSeatController,
     ReconcileMissingSeatsController
   ],
@@ -46,9 +53,12 @@ import { ProcessedMessageRepository } from '@/data/repositories/processedMessage
     CreateSeatHandler,
     GetAvailableSeatsHandler,
     GetSeatsByFlightHandler,
+    GetSeatStateHandler,
     ReserveSeatHandler,
     ReconcileMissingSeatsHandler,
     SeatReleaseRequestedConsumerHandler,
+    SeatCommitRequestedConsumerHandler,
+    SeatHoldSweeperService,
     RolesGuard,
     {
       provide: 'ISeatRepository',
@@ -72,13 +82,20 @@ import { ProcessedMessageRepository } from '@/data/repositories/processedMessage
 export class SeatModule implements OnApplicationBootstrap {
   constructor(
     @Inject('IRabbitmqConsumer') private readonly rabbitmqConsumer: IRabbitmqConsumer,
-    private readonly seatReleaseRequestedConsumerHandler: SeatReleaseRequestedConsumerHandler
+    private readonly seatReleaseRequestedConsumerHandler: SeatReleaseRequestedConsumerHandler,
+    private readonly seatCommitRequestedConsumerHandler: SeatCommitRequestedConsumerHandler,
+    private readonly seatHoldSweeperService: SeatHoldSweeperService
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.rabbitmqConsumer.consumeMessage(
+    void this.seatHoldSweeperService;
+    void this.rabbitmqConsumer.consumeMessage(
       SeatReleaseRequested,
       this.seatReleaseRequestedConsumerHandler.handle.bind(this.seatReleaseRequestedConsumerHandler)
+    );
+    void this.rabbitmqConsumer.consumeMessage(
+      SeatCommitRequested,
+      this.seatCommitRequestedConsumerHandler.handle.bind(this.seatCommitRequestedConsumerHandler)
     );
   }
 }

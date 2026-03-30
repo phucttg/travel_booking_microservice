@@ -6,6 +6,7 @@ import { Flight } from '@/flight/entities/flight.entity';
 import { FlightStatus } from '@/flight/enums/flight-status.enum';
 import { Seat } from '@/seat/entities/seat.entity';
 import { generateSeatTemplatesForModel } from '@/seat/utils/seat-layout';
+import { SeatState } from '@/seat/enums/seat-state.enum';
 
 type AirportSeed = {
   code: string;
@@ -391,7 +392,8 @@ export class DataSeeder {
             seatNumber: seatTemplate.seatNumber,
             seatClass: seatTemplate.seatClass,
             seatType: seatTemplate.seatType,
-            isReserved: false
+            isReserved: false,
+            seatState: SeatState.AVAILABLE
           })
       );
 

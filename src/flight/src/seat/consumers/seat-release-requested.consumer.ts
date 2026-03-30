@@ -29,11 +29,31 @@ export class SeatReleaseRequestedConsumerHandler {
       return;
     }
 
-    const releasedSeat = await this.seatRepository.releaseSeat(message.flightId, message.seatNumber);
+    let releasedSeat = null;
+
+    if (message.holdToken) {
+      releasedSeat = await this.seatRepository.releaseSeatByHoldToken(
+        message.flightId,
+        message.seatNumber,
+        message.holdToken
+      );
+    }
+
+    if (!releasedSeat && message.bookingId) {
+      releasedSeat = await this.seatRepository.releaseSeatByBookingId(
+        message.flightId,
+        message.seatNumber,
+        message.bookingId
+      );
+    }
+
+    if (!releasedSeat && !message.holdToken && !message.bookingId) {
+      releasedSeat = await this.seatRepository.releaseLegacySeat(message.flightId, message.seatNumber);
+    }
 
     if (!releasedSeat) {
       Logger.warn(
-        `Seat ${message.seatNumber} for flight ${message.flightId} was already available (${SeatReleaseReason[message.reason]}).`
+        `Seat ${message.seatNumber} for flight ${message.flightId} did not match a releasable state (${SeatReleaseReason[message.reason]}).`
       );
       return;
     }

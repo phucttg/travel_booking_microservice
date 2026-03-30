@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
 import { SEAT_NUMBER_REGEX } from 'building-blocks/validation/validation.constants';
-import { OptionalUppercaseText, ToInteger } from 'building-blocks/validation/validation.decorators';
+import { OptionalUppercaseText, ToDate, ToInteger } from 'building-blocks/validation/validation.decorators';
 
 export class ReserveSeatRequestDto {
   @ApiPropertyOptional({ required: false })
@@ -16,4 +16,10 @@ export class ReserveSeatRequestDto {
   @IsInt()
   @Min(1)
   flightId: number;
+
+  @ApiPropertyOptional({ required: false })
+  @IsOptional()
+  @ToDate()
+  @IsDate()
+  holdUntil?: Date;
 }

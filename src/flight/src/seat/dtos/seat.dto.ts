@@ -1,4 +1,5 @@
 import { SeatClass } from '@/seat/enums/seat-class.enum';
+import { SeatState } from '@/seat/enums/seat-state.enum';
 import { SeatType } from '@/seat/enums/seat-type.enum';
 
 export class SeatDto {
@@ -10,6 +11,7 @@ export class SeatDto {
   price: number;
   currency: string;
   isReserved: boolean;
+  seatState?: SeatState;
   createdAt: Date;
   updatedAt?: Date;
 
