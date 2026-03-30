@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { WalletLedger } from '@/payment/entities/wallet-ledger.entity';
 import { PaymentAttempt } from '@/payment/entities/payment-attempt.entity';
 import { PaymentIntent } from '@/payment/entities/payment-intent.entity';
+import { OutboxMessage } from '@/payment/entities/outbox-message.entity';
 import { Wallet } from '@/payment/entities/wallet.entity';
 import { FakePaymentScenario } from '@/payment/enums/fake-payment-scenario.enum';
 import { PayBookingWithWallet, PayBookingWithWalletHandler } from '@/payment/features/v1/wallet/wallet';
@@ -37,11 +38,11 @@ type MockSetup = {
     walletLedgerRepository: {
       save: jest.Mock;
     };
+    outboxRepository: {
+      insert: jest.Mock;
+    };
     paymentRepository: {
       findPaymentById: jest.Mock;
-    };
-    rabbitmqPublisher: {
-      publishMessage: jest.Mock;
     };
   };
 };
@@ -121,6 +122,9 @@ const makeHandler = (): MockSetup => {
   const walletLedgerRepository = {
     save: jest.fn().mockImplementation(async (ledger: WalletLedger) => ledger)
   };
+  const outboxRepository = {
+    insert: jest.fn().mockResolvedValue(undefined)
+  };
 
   const manager = {
     getRepository: jest.fn((entity: unknown) => {
@@ -136,6 +140,9 @@ const makeHandler = (): MockSetup => {
       if (entity === WalletLedger) {
         return walletLedgerRepository;
       }
+      if (entity === OutboxMessage) {
+        return outboxRepository;
+      }
 
       throw new Error('Unsupported repository in test');
     }),
@@ -150,14 +157,10 @@ const makeHandler = (): MockSetup => {
   const paymentRepository = {
     findPaymentById: jest.fn()
   };
-  const rabbitmqPublisher = {
-    publishMessage: jest.fn().mockResolvedValue(undefined)
-  };
 
   const handler = new PayBookingWithWalletHandler(
     dataSource as unknown as DataSource,
-    paymentRepository as any,
-    rabbitmqPublisher as any
+    paymentRepository as any
   );
 
   return {
@@ -171,8 +174,8 @@ const makeHandler = (): MockSetup => {
       paymentAttemptRepository,
       walletRepository,
       walletLedgerRepository,
+      outboxRepository,
       paymentRepository,
-      rabbitmqPublisher
     }
   };
 };
@@ -205,7 +208,7 @@ describe('PayBookingWithWalletHandler', () => {
         paymentStatus: PaymentStatus.SUCCEEDED
       })
     );
-    expect(mocks.rabbitmqPublisher.publishMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.outboxRepository.insert).toHaveBeenCalledTimes(1);
     expect(result.wallet.balance).toBe(7650000);
     expect(result.payment.paymentStatus).toBe(PaymentStatus.SUCCEEDED);
   });
@@ -221,7 +224,7 @@ describe('PayBookingWithWalletHandler', () => {
 
     expect(mocks.walletLedgerRepository.save).not.toHaveBeenCalled();
     expect(mocks.paymentAttemptRepository.save).not.toHaveBeenCalled();
-    expect(mocks.rabbitmqPublisher.publishMessage).not.toHaveBeenCalled();
+    expect(mocks.outboxRepository.insert).not.toHaveBeenCalled();
   });
 
   it('marks payment expired and throws PAYMENT_EXPIRED when payment is out of time window', async () => {
@@ -243,7 +246,7 @@ describe('PayBookingWithWalletHandler', () => {
         paymentStatus: PaymentStatus.EXPIRED
       })
     );
-    expect(mocks.rabbitmqPublisher.publishMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.outboxRepository.insert).toHaveBeenCalledTimes(1);
     expect(mocks.paymentAttemptRepository.save).not.toHaveBeenCalled();
   });
 
@@ -267,7 +270,7 @@ describe('PayBookingWithWalletHandler', () => {
 
     expect(mocks.paymentAttemptRepository.save).not.toHaveBeenCalled();
     expect(mocks.walletLedgerRepository.save).not.toHaveBeenCalled();
-    expect(mocks.rabbitmqPublisher.publishMessage).not.toHaveBeenCalled();
+    expect(mocks.outboxRepository.insert).not.toHaveBeenCalled();
     expect(result.wallet.balance).toBe(12000000);
     expect(result.payment.paymentStatus).toBe(PaymentStatus.SUCCEEDED);
   });

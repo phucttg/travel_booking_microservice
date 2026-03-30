@@ -4,6 +4,7 @@ import { PaymentStatus, RefundStatus } from 'building-blocks/contracts/payment.c
 import { PayBookingWithWallet, PayBookingWithWalletHandler } from '@/payment/features/v1/wallet/wallet';
 import { PaymentIntent } from '@/payment/entities/payment-intent.entity';
 import { PaymentAttempt } from '@/payment/entities/payment-attempt.entity';
+import { OutboxMessage } from '@/payment/entities/outbox-message.entity';
 import { Refund } from '@/payment/entities/refund.entity';
 import { Wallet } from '@/payment/entities/wallet.entity';
 import { WalletLedger } from '@/payment/entities/wallet-ledger.entity';
@@ -14,9 +15,6 @@ describe('PayBookingWithWalletHandler (integration)', () => {
   let postgresContainer: StartedTestContainer;
   let dataSource: DataSource;
   let handler: PayBookingWithWalletHandler;
-  const rabbitmqPublisher = {
-    publishMessage: jest.fn().mockResolvedValue(undefined)
-  };
 
   beforeAll(async () => {
     postgresContainer = await new GenericContainer('postgres:16-alpine')
@@ -42,7 +40,7 @@ describe('PayBookingWithWalletHandler (integration)', () => {
       synchronize: true,
       dropSchema: true,
       logging: false,
-      entities: [PaymentIntent, PaymentAttempt, Refund, Wallet, WalletLedger]
+      entities: [PaymentIntent, PaymentAttempt, Refund, Wallet, WalletLedger, OutboxMessage]
     });
     await dataSource.initialize();
 
@@ -55,7 +53,7 @@ describe('PayBookingWithWalletHandler (integration)', () => {
       })
     };
 
-    handler = new PayBookingWithWalletHandler(dataSource, paymentRepository as any, rabbitmqPublisher as any);
+    handler = new PayBookingWithWalletHandler(dataSource, paymentRepository as any);
   });
 
   afterAll(async () => {
@@ -69,7 +67,6 @@ describe('PayBookingWithWalletHandler (integration)', () => {
   });
 
   beforeEach(async () => {
-    rabbitmqPublisher.publishMessage.mockClear();
     await dataSource.synchronize(true);
   });
 
@@ -114,7 +111,8 @@ describe('PayBookingWithWalletHandler (integration)', () => {
     expect(savedPayment.paymentStatus).toBe(PaymentStatus.SUCCEEDED);
 
     const attempts = await dataSource.getRepository(PaymentAttempt).findBy({ paymentId: seededPayment.id });
+    const outboxMessages = await dataSource.getRepository(OutboxMessage).find();
     expect(attempts).toHaveLength(1);
-    expect(rabbitmqPublisher.publishMessage).toHaveBeenCalledTimes(1);
+    expect(outboxMessages).toHaveLength(1);
   });
 });
