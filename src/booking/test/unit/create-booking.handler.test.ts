@@ -15,8 +15,19 @@ const buildUpstreamFlightError = (status: number, data: Record<string, unknown>)
     data
   } as any);
 
+const createWorkflowService = () => ({
+  expirePendingBooking: jest.fn(),
+  cancelBooking: jest.fn(),
+  enqueuePendingSeatRelease: jest.fn(),
+  enqueueConfirmedSeatRelease: jest.fn(),
+  enqueueSeatCommit: jest.fn(),
+  enqueueRefund: jest.fn()
+});
+
 describe('CreateBookingHandler', () => {
   it('creates a pending checkout with the locked seat price instead of the base flight fare', async () => {
+    const baseNow = new Date('2099-03-10T07:00:00.000Z');
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(baseNow.getTime());
     const bookingRepository = {
       findActiveBookingByUserAndFlight: jest.fn().mockResolvedValue(null),
       createBooking: jest.fn().mockImplementation(async (booking) => ({ ...booking, id: 99 })),
@@ -43,6 +54,9 @@ describe('CreateBookingHandler', () => {
         price: 2625000,
         currency: 'VND',
         isReserved: true,
+        seatState: 1,
+        holdToken: 'hold-token-1',
+        holdExpiresAt: '2099-03-10T07:17:00.000Z',
         createdAt: new Date().toISOString()
       })
     };
@@ -74,6 +88,10 @@ describe('CreateBookingHandler', () => {
       publishMessage: jest.fn(),
       isPublished: jest.fn()
     };
+    const dataSource = {
+      transaction: jest.fn()
+    };
+    const bookingSeatWorkflowService = createWorkflowService();
 
     const handler = new CreateBookingHandler(
       bookingRepository as any,
@@ -81,34 +99,51 @@ describe('CreateBookingHandler', () => {
       passengerClient as any,
       paymentClient as any,
       idempotencyRepository as any,
-      rabbitmqPublisher as any
+      dataSource as any,
+      rabbitmqPublisher as any,
+      bookingSeatWorkflowService as any
     );
 
-    const result = await handler.execute(
-      new CreateBooking({
-        currentUserId: 42,
-        flightId: 7,
-        description: 'Window seat',
-        seatNumber: '1A',
-        idempotencyKey: 'booking-1'
-      })
-    );
+    try {
+      const result = await handler.execute(
+        new CreateBooking({
+          currentUserId: 42,
+          flightId: 7,
+          description: 'Window seat',
+          seatNumber: '1A',
+          idempotencyKey: 'booking-1'
+        })
+      );
 
-    expect(bookingRepository.createBooking).toHaveBeenCalledWith(
-      expect.objectContaining({
-        price: 2625000,
-        seatClass: SeatClass.BUSINESS,
-        bookingStatus: BookingStatus.PENDING_PAYMENT
-      })
-    );
-    expect(paymentClient.createPaymentIntent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        amount: 2625000,
-        currency: 'VND'
-      })
-    );
-    expect(result.booking.bookingStatus).toBe(BookingStatus.PENDING_PAYMENT);
-    expect(result.payment.amount).toBe(2625000);
+      expect(flightClient.reserveSeat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flightId: 7,
+          seatNumber: '1A',
+          holdUntil: new Date('2099-03-10T07:17:00.000Z')
+        })
+      );
+      expect(bookingRepository.createBooking).toHaveBeenCalledWith(
+        expect.objectContaining({
+          price: 2625000,
+          seatClass: SeatClass.BUSINESS,
+          bookingStatus: BookingStatus.PENDING_PAYMENT,
+          paymentExpiresAt: new Date('2099-03-10T07:15:00.000Z'),
+          seatHoldToken: 'hold-token-1',
+          seatHoldExpiresAt: new Date('2099-03-10T07:17:00.000Z')
+        })
+      );
+      expect(paymentClient.createPaymentIntent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 2625000,
+          currency: 'VND',
+          expiresAt: new Date('2099-03-10T07:15:00.000Z')
+        })
+      );
+      expect(result.booking.bookingStatus).toBe(BookingStatus.PENDING_PAYMENT);
+      expect(result.payment.amount).toBe(2625000);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('rejects duplicate active bookings before reserving a new seat', async () => {
@@ -151,6 +186,10 @@ describe('CreateBookingHandler', () => {
       publishMessage: jest.fn(),
       isPublished: jest.fn()
     };
+    const dataSource = {
+      transaction: jest.fn()
+    };
+    const bookingSeatWorkflowService = createWorkflowService();
 
     const handler = new CreateBookingHandler(
       bookingRepository as any,
@@ -158,7 +197,9 @@ describe('CreateBookingHandler', () => {
       passengerClient as any,
       paymentClient as any,
       idempotencyRepository as any,
-      rabbitmqPublisher as any
+      dataSource as any,
+      rabbitmqPublisher as any,
+      bookingSeatWorkflowService as any
     );
 
     await expect(
@@ -217,6 +258,10 @@ describe('CreateBookingHandler', () => {
       publishMessage: jest.fn(),
       isPublished: jest.fn()
     };
+    const dataSource = {
+      transaction: jest.fn()
+    };
+    const bookingSeatWorkflowService = createWorkflowService();
 
     const handler = new CreateBookingHandler(
       bookingRepository as any,
@@ -224,7 +269,9 @@ describe('CreateBookingHandler', () => {
       passengerClient as any,
       paymentClient as any,
       idempotencyRepository as any,
-      rabbitmqPublisher as any
+      dataSource as any,
+      rabbitmqPublisher as any,
+      bookingSeatWorkflowService as any
     );
 
     try {
@@ -288,6 +335,10 @@ describe('CreateBookingHandler', () => {
       publishMessage: jest.fn(),
       isPublished: jest.fn()
     };
+    const dataSource = {
+      transaction: jest.fn()
+    };
+    const bookingSeatWorkflowService = createWorkflowService();
 
     const handler = new CreateBookingHandler(
       bookingRepository as any,
@@ -295,7 +346,9 @@ describe('CreateBookingHandler', () => {
       passengerClient as any,
       paymentClient as any,
       idempotencyRepository as any,
-      rabbitmqPublisher as any
+      dataSource as any,
+      rabbitmqPublisher as any,
+      bookingSeatWorkflowService as any
     );
 
     try {
