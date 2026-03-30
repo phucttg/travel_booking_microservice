@@ -11,6 +11,7 @@ import { DataSeeder } from '@/data/seeds/data-seeder';
 import { RequestContextMiddleware } from 'building-blocks/context/context';
 import { postgresOptions } from '@/data/data-source';
 import { OpenTelemetryModule } from 'building-blocks/openTelemetry/opentelemetry.module';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { OpenTelemetryModule } from 'building-blocks/openTelemetry/opentelemetry
       }
     ])
   ],
-  providers: [JwtStrategy, DataSeeder]
+  providers: [JwtStrategy, DataSeeder, IdentityUserEventPublisherService]
 })
 export class AppModule implements OnApplicationBootstrap, NestModule {
   constructor(private readonly dataSeeder: DataSeeder) {}

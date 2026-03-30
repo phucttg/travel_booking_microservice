@@ -1,13 +1,12 @@
 import { ConflictException } from '@nestjs/common';
-import { UserCreated } from 'building-blocks/contracts/identity.contract';
 import * as TypeMoq from 'typemoq';
 import { FakeUser } from '@tests/shared/fakes/user/fake-user.entity';
 import { User } from '@/user/entities/user.entity';
 import { IUserRepository } from '@/data/repositories/user.repository';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 import { Role } from '@/user/enums/role.enum';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 describe('unit test for identity user write service', () => {
   let identityUserWriteService: IdentityUserWriteService;
@@ -19,12 +18,13 @@ describe('unit test for identity user write service', () => {
   });
 
   const mockUserRepository: TypeMoq.IMock<IUserRepository> = TypeMoq.Mock.ofType<IUserRepository>();
-  const mockPublisher: TypeMoq.IMock<IRabbitmqPublisher> = TypeMoq.Mock.ofType<IRabbitmqPublisher>();
+  const mockPublisher: TypeMoq.IMock<IdentityUserEventPublisherService> =
+    TypeMoq.Mock.ofType<IdentityUserEventPublisherService>();
 
   beforeEach(() => {
     mockUserRepository.reset();
     mockPublisher.reset();
-    identityUserWriteService = new IdentityUserWriteService(mockPublisher.object, mockUserRepository.object);
+    identityUserWriteService = new IdentityUserWriteService(mockUserRepository.object, mockPublisher.object);
   });
 
   it('should create a user, publish UserCreated and return mapped dto', async () => {
@@ -35,7 +35,7 @@ describe('unit test for identity user write service', () => {
       .setup((x) => x.createUser(TypeMoq.It.isAnyObject(User)))
       .returns(() => Promise.resolve(fakeUser));
     mockPublisher
-      .setup((x) => x.publishMessage(TypeMoq.It.isAnyObject(UserCreated), TypeMoq.It.isAny()))
+      .setup((x) => x.publishUserCreated(TypeMoq.It.isAny()))
       .returns(() => Promise.resolve());
 
     const result = await identityUserWriteService.createUser({
@@ -50,7 +50,7 @@ describe('unit test for identity user write service', () => {
     });
 
     mockPublisher.verify(
-      (x) => x.publishMessage(TypeMoq.It.isAnyObject(UserCreated), TypeMoq.It.isAny()),
+      (x) => x.publishUserCreated(TypeMoq.It.isAny()),
       TypeMoq.Times.once()
     );
     expect(result.email).toBe(fakeUser.email);

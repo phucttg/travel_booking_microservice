@@ -5,13 +5,12 @@ import { UserDto } from '@/user/dtos/user.dto';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { IUserRepository } from '@/data/repositories/user.repository';
 import { User } from '@/user/entities/user.entity';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
-import { UserDeleted } from 'building-blocks/contracts/identity.contract';
 import { Roles } from '@/common/auth/roles.decorator';
 import { RolesGuard } from '@/common/auth/roles.guard';
 import { Role } from '@/user/enums/role.enum';
 import mapper from '@/user/mapping';
 import { UserIdQueryDto } from '@/user/dtos/user-id-query.dto';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 export class DeleteUserById {
   id: number;
@@ -45,8 +44,8 @@ export class DeleteUserByIdController {
 @CommandHandler(DeleteUserById)
 export class DeleteUserByIdHandler implements ICommandHandler<DeleteUserById> {
   constructor(
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher,
-    @Inject('IUserRepository') private readonly userRepository: IUserRepository
+    @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
   async execute(command: DeleteUserById): Promise<UserDto> {
@@ -57,7 +56,7 @@ export class DeleteUserByIdHandler implements ICommandHandler<DeleteUserById> {
     }
 
     const deletedUser = await this.userRepository.removeUser(userEntity);
-    await this.rabbitmqPublisher.publishMessage(new UserDeleted(deletedUser));
+    await this.identityUserEventPublisherService.publishUserDeleted(deletedUser);
 
     return mapper.map<User, UserDto>(deletedUser, new UserDto());
   }

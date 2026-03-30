@@ -19,6 +19,7 @@ import { UserRepository } from '@/data/repositories/user.repository';
 import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
 import { RegisterController, RegisterHandler } from '@/auth/features/v1/register/register';
 import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 @Module({
   imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([Token, User])],
@@ -37,6 +38,7 @@ import { IdentityUserWriteService } from '@/user/services/identity-user-write.se
     ValidateTokenHandler,
     RegisterHandler,
     IdentityUserWriteService,
+    IdentityUserEventPublisherService,
     {
       provide: 'IAuthRepository',
       useClass: AuthRepository

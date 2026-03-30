@@ -20,6 +20,7 @@ import { AuthRepository } from '../data/repositories/auth.repository';
 import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
 import { RolesGuard } from '@/common/auth/roles.guard';
 import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 @Module({
   imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([User, Token])],
   controllers: [
@@ -37,6 +38,7 @@ import { IdentityUserWriteService } from '@/user/services/identity-user-write.se
     GetUsersHandler,
     GetUserByIdHandler,
     IdentityUserWriteService,
+    IdentityUserEventPublisherService,
     RolesGuard,
     {
       provide: 'IUserRepository',

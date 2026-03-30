@@ -17,14 +17,13 @@ import { Response } from 'express';
 import { IUserRepository } from '@/data/repositories/user.repository';
 import { User } from '@/user/entities/user.entity';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { encryptPassword } from 'building-blocks/utils/encryption';
-import { UserUpdated } from 'building-blocks/contracts/identity.contract';
 import { Roles } from '@/common/auth/roles.decorator';
 import { RolesGuard } from '@/common/auth/roles.guard';
 import { UpdateUserRequestDto } from '@/user/dtos/update-user-request.dto';
 import { UserIdParamDto } from '@/user/dtos/user-id-param.dto';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 export class UpdateUser {
   id: number;
@@ -76,8 +75,8 @@ export class UpdateUserController {
 @CommandHandler(UpdateUser)
 export class UpdateUserHandler implements ICommandHandler<UpdateUser> {
   constructor(
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher,
-    @Inject('IUserRepository') private readonly userRepository: IUserRepository
+    @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
   async execute(command: UpdateUser): Promise<void> {
@@ -109,6 +108,6 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUser> {
     });
 
     await this.userRepository.updateUser(updateUserEntity);
-    await this.rabbitmqPublisher.publishMessage(new UserUpdated(updateUserEntity));
+    await this.identityUserEventPublisherService.publishUserUpdated(updateUserEntity);
   }
 }

@@ -1,13 +1,12 @@
 import { Inject, Injectable, ConflictException } from '@nestjs/common';
 import { IUserRepository } from '@/data/repositories/user.repository';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { encryptPassword } from 'building-blocks/utils/encryption';
 import { User } from '@/user/entities/user.entity';
 import { Role } from '@/user/enums/role.enum';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
-import { UserCreated } from 'building-blocks/contracts/identity.contract';
 import { UserDto } from '@/user/dtos/user.dto';
 import mapper from '@/user/mapping';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 type CreateIdentityUserInput = {
   email: string;
@@ -29,8 +28,8 @@ type DuplicateDriverError = {
 @Injectable()
 export class IdentityUserWriteService {
   constructor(
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher,
-    @Inject('IUserRepository') private readonly userRepository: IUserRepository
+    @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
   async createUser(input: CreateIdentityUserInput): Promise<UserDto> {
@@ -63,9 +62,7 @@ export class IdentityUserWriteService {
       throw error;
     }
 
-    await this.rabbitmqPublisher.publishMessage(new UserCreated(userEntity), {
-      useEnvelope: true
-    });
+    await this.identityUserEventPublisherService.publishUserCreated(userEntity);
 
     return mapper.map<User, UserDto>(userEntity, new UserDto());
   }

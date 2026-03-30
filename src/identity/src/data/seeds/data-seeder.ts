@@ -1,15 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { User } from '@/user/entities/user.entity';
 import { Role } from '@/user/enums/role.enum';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
 import { encryptPassword } from 'building-blocks/utils/encryption';
-import {
-  PassengerType as IdentityContractPassengerType,
-  Role as IdentityContractRole,
-  UserCreated
-} from 'building-blocks/contracts/identity.contract';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
+import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
 
 type SeedUser = {
   name: string;
@@ -26,7 +21,7 @@ type SeedUser = {
 export class DataSeeder {
   constructor(
     private readonly entityManager: EntityManager,
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher
+    private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
   private readonly seedUsers: SeedUser[] = [
@@ -90,23 +85,7 @@ export class DataSeeder {
 
   private async publishUserCreatedEvents(users: User[]): Promise<void> {
     for (const user of users) {
-      await this.rabbitmqPublisher.publishMessage(
-        new UserCreated({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          isEmailVerified: user.isEmailVerified,
-          role: user.role as unknown as IdentityContractRole,
-          passportNumber: user.passportNumber,
-          age: user.age,
-          passengerType: user.passengerType as unknown as IdentityContractPassengerType,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt || undefined
-        }),
-        {
-          useEnvelope: true
-        }
-      );
+      await this.identityUserEventPublisherService.publishUserCreated(user);
     }
   }
 }
