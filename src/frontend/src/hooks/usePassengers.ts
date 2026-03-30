@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { passengerApi } from '@api/passenger.api';
 import { PaginationParams, PagedResult } from '@/types/common.types';
 import { PassengerDto } from '@/types/passenger.types';
-import { buildPaginationParams } from '@utils/helpers';
+import { buildPaginationParams, normalizeProblemError } from '@utils/helpers';
 
 export const passengerKeys = {
   all: ['passengers'] as const,
@@ -44,12 +44,17 @@ export const useGetPassengerById = (id: number) =>
     enabled: id > 0
   });
 
-export const useGetPassengerByUserId = (userId: number) =>
+export const useGetPassengerByUserId = (userId: number, options?: { enabled?: boolean }) =>
   useQuery({
     queryKey: passengerKeys.byUserId(userId),
     queryFn: async () => {
       const response = await passengerApi.getByUserId(userId);
       return response.data;
     },
-    enabled: userId > 0
+    enabled: userId > 0 && (options?.enabled ?? true),
+    retry: (failureCount, error) => {
+      const appError = normalizeProblemError(error);
+      return appError.status === 404 && failureCount < 5;
+    },
+    retryDelay: 1000
   });

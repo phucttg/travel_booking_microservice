@@ -129,7 +129,9 @@ export const CreateBookingPage = () => {
   const seatsQuery = useGetAvailableSeats(selectedFlightId);
   const airportsQuery = useGetAirports();
   const aircraftsQuery = useGetAircrafts();
-  const passengerQuery = useGetPassengerByUserId(currentUserId);
+  const passengerQuery = useGetPassengerByUserId(currentUserId, {
+    enabled: queryBookingId <= 0 && step >= 2
+  });
   const createBookingMutation = useCreateBooking();
   const walletQuery = useGetWalletMe(true);
   const payBookingWithWalletMutation = usePayBookingWithWallet();
@@ -139,6 +141,8 @@ export const CreateBookingPage = () => {
 
   const flights = useMemo(() => flightsQuery.data?.data ?? [], [flightsQuery.data]);
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
+  const passengerAppError = passengerQuery.error ? normalizeProblemError(passengerQuery.error) : null;
+  const isPassengerSyncing = !passengerQuery.data && passengerQuery.status === 'pending';
 
   useEffect(() => {
     if (queryBookingId > 0) {
@@ -625,14 +629,29 @@ export const CreateBookingPage = () => {
         <Card className="app-surface" style={{ borderRadius: 20 }}>
           <Space direction="vertical" size={10} style={{ width: '100%' }}>
             <Text strong>Passenger profile</Text>
-            {passengerQuery.data ? (
+            {isPassengerSyncing ? (
+              <Alert
+                type="info"
+                showIcon
+                message="Đang đồng bộ hồ sơ hành khách"
+                description="Hệ thống đang chờ passenger profile được đồng bộ từ identity service."
+              />
+            ) : passengerQuery.data ? (
               <Text>{`${passengerQuery.data.name} · Passport ${passengerQuery.data.passportNumber}`}</Text>
             ) : (
               <Alert
                 type="error"
                 showIcon
-                message="Không tìm thấy passenger tương ứng user hiện tại"
-                description="Passenger được đồng bộ từ UserCreated event. Vui lòng đảm bảo passenger service đã chạy và identity service đã publish seed event."
+                message={
+                  passengerAppError?.status === 404
+                    ? 'Không tìm thấy passenger tương ứng user hiện tại'
+                    : passengerAppError?.message || 'Không thể tải hồ sơ hành khách hiện tại'
+                }
+                description={
+                  passengerAppError?.status === 404
+                    ? 'Passenger được đồng bộ từ UserCreated event. Vui lòng thử lại sau ít giây nếu bạn vừa đăng ký.'
+                    : 'Vui lòng thử lại sau hoặc kiểm tra passenger service.'
+                }
               />
             )}
           </Space>
@@ -680,7 +699,7 @@ export const CreateBookingPage = () => {
           <Button
             type="primary"
             loading={createBookingMutation.isPending}
-            disabled={!passengerQuery.data?.id || !selectedFlight || !selectedFlightIsBookable}
+            disabled={isPassengerSyncing || !passengerQuery.data?.id || !selectedFlight || !selectedFlightIsBookable}
             onClick={handleSubmitBooking}
           >
             Tiếp tục thanh toán ví

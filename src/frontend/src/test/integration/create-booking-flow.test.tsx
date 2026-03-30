@@ -1,10 +1,12 @@
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HttpResponse, http } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { CreateBookingPage } from '@pages/bookings/CreateBookingPage';
 import { server } from '@/test/msw/server';
 import { renderWithRoute } from '@/test/utils';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
   aircrafts,
   airports,
@@ -63,9 +65,36 @@ const mockCreateBookingDependencies = ({
   );
 };
 
+const renderCreateBookingWithRetryClient = (route = '/bookings/create') => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false
+      },
+      mutations: {
+        retry: false
+      }
+    }
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[route]}>
+        <Routes>
+          <Route path="/bookings/create" element={<CreateBookingPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+};
+
 describe('create booking flow', () => {
   beforeEach(() => {
     setAuthenticatedUser();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('shows a warning and blocks the deep link flow for invalid flights', async () => {
@@ -259,4 +288,85 @@ describe('create booking flow', () => {
     expect(await screen.findByText('Booking #56 không ở trạng thái chờ thanh toán')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Thanh toán bằng ví' })).not.toBeInTheDocument();
   });
+
+  it(
+    'keeps booking submit disabled while passenger profile is syncing, then enables it after retry success',
+    async () => {
+      const user = userEvent.setup();
+      const selectedFlight = makeFlight({ id: 1, flightNumber: 'VN999' });
+      let passengerAttempts = 0;
+
+      mockCreateBookingDependencies({
+        flights: [selectedFlight],
+        selectedFlight,
+        seats: [makeSeat({ id: 12, flightId: 1, seatNumber: '1A' })]
+      });
+
+      server.use(
+        http.get('/api/v1/passenger/get-by-user-id', () => {
+          passengerAttempts += 1;
+
+          if (passengerAttempts < 3) {
+            return new HttpResponse(null, { status: 404 });
+          }
+
+          return HttpResponse.json(makePassenger());
+        })
+      );
+
+      renderCreateBookingWithRetryClient();
+
+      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: '1A' }));
+      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+
+      expect(await screen.findByText('Đang đồng bộ hồ sơ hành khách')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeDisabled();
+
+      await waitFor(() => {
+        expect(passengerAttempts).toBe(3);
+        expect(screen.getByText('Nguyen Van A · Passport B1234567')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeEnabled();
+      }, { timeout: 5000 });
+    },
+    10000
+  );
+
+  it(
+    'shows passenger not found only after retry is exhausted',
+    async () => {
+      const user = userEvent.setup();
+      const selectedFlight = makeFlight({ id: 1, flightNumber: 'VN998' });
+      let passengerAttempts = 0;
+
+      mockCreateBookingDependencies({
+        flights: [selectedFlight],
+        selectedFlight,
+        seats: [makeSeat({ id: 13, flightId: 1, seatNumber: '1A' })]
+      });
+
+      server.use(
+        http.get('/api/v1/passenger/get-by-user-id', () => {
+          passengerAttempts += 1;
+          return new HttpResponse(null, { status: 404 });
+        })
+      );
+
+      renderCreateBookingWithRetryClient();
+
+      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: '1A' }));
+      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+
+      expect(await screen.findByText('Đang đồng bộ hồ sơ hành khách')).toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(passengerAttempts).toBe(6);
+        expect(screen.getByText('Không tìm thấy passenger tương ứng user hiện tại')).toBeInTheDocument();
+      }, { timeout: 8000 });
+
+      expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeDisabled();
+    },
+    15000
+  );
 });
