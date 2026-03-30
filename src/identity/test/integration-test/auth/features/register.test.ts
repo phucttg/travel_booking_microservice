@@ -4,6 +4,18 @@ import { Register } from '@/auth/features/v1/register/register';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
 import { Role, UserCreated } from 'building-blocks/contracts/identity.contract';
 
+const waitForUserCreatedPublished = async (fixture: Fixture): Promise<boolean> => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (await fixture.rabbitmqPublisher.isPublished(new UserCreated())) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return false;
+};
+
 describe('integration test for register', () => {
   const integrationTestFixture = new IntegrationTestFixture();
   let fixture: Fixture;
@@ -28,7 +40,7 @@ describe('integration test for register', () => {
       })
     );
 
-    const isPublished = await fixture.rabbitmqPublisher.isPublished(new UserCreated());
+    const isPublished = await waitForUserCreatedPublished(fixture);
     const user = await fixture.userRepository.findUserById(result.id);
 
     expect(isPublished).toBe(true);

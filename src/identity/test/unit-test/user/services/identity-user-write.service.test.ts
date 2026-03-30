@@ -7,6 +7,7 @@ import { IdentityUserWriteService } from '@/user/services/identity-user-write.se
 import { Role } from '@/user/enums/role.enum';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { DataSource } from 'typeorm';
 
 describe('unit test for identity user write service', () => {
   let identityUserWriteService: IdentityUserWriteService;
@@ -20,22 +21,35 @@ describe('unit test for identity user write service', () => {
   const mockUserRepository: TypeMoq.IMock<IUserRepository> = TypeMoq.Mock.ofType<IUserRepository>();
   const mockPublisher: TypeMoq.IMock<IdentityUserEventPublisherService> =
     TypeMoq.Mock.ofType<IdentityUserEventPublisherService>();
+  let dataSource: DataSource;
+  let txUserRepository: { save: jest.Mock };
 
   beforeEach(() => {
     mockUserRepository.reset();
     mockPublisher.reset();
-    identityUserWriteService = new IdentityUserWriteService(mockUserRepository.object, mockPublisher.object);
+    txUserRepository = {
+      save: jest.fn().mockResolvedValue(fakeUser)
+    };
+    dataSource = {
+      transaction: jest.fn(async (callback) =>
+        callback({
+          getRepository: jest.fn(() => txUserRepository)
+        })
+      )
+    } as unknown as DataSource;
+    identityUserWriteService = new IdentityUserWriteService(
+      mockUserRepository.object,
+      dataSource,
+      mockPublisher.object
+    );
   });
 
   it('should create a user, publish UserCreated and return mapped dto', async () => {
     mockUserRepository
       .setup((x) => x.findUserByEmail(TypeMoq.It.isAnyString()))
       .returns(() => Promise.resolve(null));
-    mockUserRepository
-      .setup((x) => x.createUser(TypeMoq.It.isAnyObject(User)))
-      .returns(() => Promise.resolve(fakeUser));
     mockPublisher
-      .setup((x) => x.publishUserCreated(TypeMoq.It.isAny()))
+      .setup((x) => x.publishUserCreated(TypeMoq.It.isAny(), TypeMoq.It.isAny()))
       .returns(() => Promise.resolve());
 
     const result = await identityUserWriteService.createUser({
@@ -50,9 +64,10 @@ describe('unit test for identity user write service', () => {
     });
 
     mockPublisher.verify(
-      (x) => x.publishUserCreated(TypeMoq.It.isAny()),
+      (x) => x.publishUserCreated(TypeMoq.It.isAny(), TypeMoq.It.isAny()),
       TypeMoq.Times.once()
     );
+    expect(txUserRepository.save).toHaveBeenCalledWith(expect.any(User));
     expect(result.email).toBe(fakeUser.email);
     expect(result.role).toBe(Role.USER);
     expect(result.isEmailVerified).toBe(false);
@@ -62,16 +77,12 @@ describe('unit test for identity user write service', () => {
     mockUserRepository
       .setup((x) => x.findUserByEmail(TypeMoq.It.isAnyString()))
       .returns(() => Promise.resolve(null));
-    mockUserRepository
-      .setup((x) => x.createUser(TypeMoq.It.isAnyObject(User)))
-      .returns(() =>
-        Promise.reject({
-          driverError: {
-            code: '23505',
-            constraint: 'UQ_user_email'
-          }
-        })
-      );
+    txUserRepository.save.mockRejectedValue({
+      driverError: {
+        code: '23505',
+        constraint: 'UQ_user_email'
+      }
+    });
 
     await expect(
       identityUserWriteService.createUser({

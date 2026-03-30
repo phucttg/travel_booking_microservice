@@ -14,6 +14,18 @@ const buildRegisterRequest = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 });
 
+const waitForUserCreatedPublished = async (fixture: Fixture): Promise<boolean> => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (await fixture.rabbitmqPublisher.isPublished(new UserCreated())) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return false;
+};
+
 describe('end-to-end test for register', () => {
   const publicHttpFixture = new PublicHttpFixture();
   let fixture: Fixture;
@@ -32,7 +44,7 @@ describe('end-to-end test for register', () => {
       .send(buildRegisterRequest())
       .expect(201);
 
-    const isPublished = await fixture.rabbitmqPublisher.isPublished(new UserCreated());
+    const isPublished = await waitForUserCreatedPublished(fixture);
 
     expect(response.body.role).toBe(0);
     expect(response.body.isEmailVerified).toBe(false);
