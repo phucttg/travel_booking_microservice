@@ -10,14 +10,14 @@ export const seatKeys = {
   availableByFlight: (flightId: number) => ['seats', 'availableByFlight', flightId] as const
 };
 
-export const useGetAvailableSeats = (flightId: number) =>
+export const useGetAvailableSeats = (flightId: number, options?: { enabled?: boolean }) =>
   useQuery({
     queryKey: seatKeys.availableByFlight(flightId),
     queryFn: async () => {
       const response = await seatApi.getAvailableSeats(flightId);
       return response.data;
     },
-    enabled: flightId > 0
+    enabled: (options?.enabled ?? true) && flightId > 0
   });
 
 export const useGetSeatsByFlight = (flightId: number) =>

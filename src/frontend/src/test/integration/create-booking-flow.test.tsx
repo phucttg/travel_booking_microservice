@@ -25,6 +25,12 @@ import { formatCurrency } from '@utils/format';
 const toCurrencyRegex = (amount: number, currency = 'VND') =>
   new RegExp(formatCurrency(amount, currency).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
 
+type RequestCounts = {
+  flightById: number;
+  seatInventory: number;
+  walletMe: number;
+};
+
 const mockCreateBookingDependencies = ({
   flights,
   selectedFlight,
@@ -36,6 +42,12 @@ const mockCreateBookingDependencies = ({
   seats?: ReturnType<typeof makeSeat>[];
   passenger?: ReturnType<typeof makePassenger>;
 }) => {
+  const requestCounts: RequestCounts = {
+    flightById: 0,
+    seatInventory: 0,
+    walletMe: 0
+  };
+
   server.use(
     http.get('/api/v1/airport/get-all', () => HttpResponse.json(airports)),
     http.get('/api/v1/aircraft/get-all', () => HttpResponse.json(aircrafts)),
@@ -46,21 +58,26 @@ const mockCreateBookingDependencies = ({
       })
     ),
     http.get('/api/v1/flight/get-by-id', ({ request }) => {
+      requestCounts.flightById += 1;
       const id = Number(new URL(request.url).searchParams.get('id'));
       const flight = [selectedFlight, ...flights].find((entry) => entry.id === id) || selectedFlight;
       return HttpResponse.json(flight);
     }),
-    http.get('/api/v1/seat/get-available-seats', () => HttpResponse.json(seats)),
+    http.get('/api/v1/seat/get-available-seats', () => {
+      requestCounts.seatInventory += 1;
+      return HttpResponse.json(seats);
+    }),
     http.get('/api/v1/passenger/get-by-user-id', () => HttpResponse.json(passenger)),
-    http.get('/api/v1/wallet/me', () =>
-      HttpResponse.json({
+    http.get('/api/v1/wallet/me', () => {
+      requestCounts.walletMe += 1;
+      return HttpResponse.json({
         userId: 42,
         balance: 10000000,
         currency: 'VND',
         createdAt: '2099-03-10T07:00:00.000Z',
         updatedAt: '2099-03-10T07:00:00.000Z'
-      })
-    ),
+      });
+    }),
     http.get('/api/v1/booking/get-all', () =>
       HttpResponse.json({
         result: [makeBooking()],
@@ -68,6 +85,8 @@ const mockCreateBookingDependencies = ({
       })
     )
   );
+
+  return requestCounts;
 };
 
 const renderCreateBookingWithRetryClient = (route = '/bookings/create') => {
@@ -115,7 +134,7 @@ describe('create booking flow', () => {
       flightStatus: FlightStatus.SCHEDULED
     });
 
-    mockCreateBookingDependencies({
+    const requestCounts = mockCreateBookingDependencies({
       flights: [validFlight, invalidFlight],
       selectedFlight: invalidFlight
     });
@@ -129,6 +148,9 @@ describe('create booking flow', () => {
     expect(screen.getByRole('heading', { name: 'Chọn chuyến bay' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Chọn ghế' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Không thể đặt' })).toBeDisabled();
+    expect(requestCounts.flightById).toBe(0);
+    expect(requestCounts.seatInventory).toBe(0);
+    expect(requestCounts.walletMe).toBe(0);
   });
 
   it('renders every flight returned by backend without extra past-flight filtering', async () => {
@@ -331,7 +353,7 @@ describe('create booking flow', () => {
     const messageErrorSpy = vi.spyOn(message, 'error').mockImplementation(() => undefined as any);
     const submittedPayloads: unknown[] = [];
 
-    mockCreateBookingDependencies({
+    const requestCounts = mockCreateBookingDependencies({
       flights: [selectedFlight],
       selectedFlight,
       seats: [
@@ -387,7 +409,8 @@ describe('create booking flow', () => {
       );
     });
     expect(messageErrorSpy).not.toHaveBeenCalled();
-  });
+    expect(requestCounts.walletMe).toBe(0);
+  }, 10000);
 
   it('shows the selected premium fare before checkout and keeps the locked premium total in payment', async () => {
     const user = userEvent.setup();
@@ -419,7 +442,7 @@ describe('create booking flow', () => {
     );
     const submittedPayloads: unknown[] = [];
 
-    mockCreateBookingDependencies({
+    const requestCounts = mockCreateBookingDependencies({
       flights: [selectedFlight],
       selectedFlight,
       seats: [selectedSeat]
@@ -442,6 +465,7 @@ describe('create booking flow', () => {
     await user.click(await screen.findByRole('button', { name: '1A' }));
     await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
 
+    expect(requestCounts.walletMe).toBe(0);
     expect((await screen.findAllByText('Selected fare')).length).toBeGreaterThan(0);
     expect(screen.getByText('Checkout sẽ khóa đúng giá của ghế 1A.')).toBeInTheDocument();
     expect(screen.getAllByText(toCurrencyRegex(selectedSeat.price, selectedSeat.currency)).length).toBeGreaterThan(0);
@@ -460,7 +484,10 @@ describe('create booking flow', () => {
 
     expect(await screen.findByText('Locked total')).toBeInTheDocument();
     expect(screen.getAllByText(toCurrencyRegex(checkout.payment.amount, checkout.payment.currency)).length).toBeGreaterThan(0);
-  });
+    await waitFor(() => {
+      expect(requestCounts.walletMe).toBeGreaterThan(0);
+    });
+  }, 10000);
 
   it('shows the sold-out warning and keeps review blocked when no seats are available', async () => {
     const user = userEvent.setup();
@@ -510,8 +537,9 @@ describe('create booking flow', () => {
         expiresAt: '2099-03-10T07:15:00.000Z'
       }
     });
+    let paymentByIdCalls = 0;
 
-    mockCreateBookingDependencies({
+    const requestCounts = mockCreateBookingDependencies({
       flights: [selectedFlight],
       selectedFlight,
       seats: [makeSeat({ id: 10, flightId: 1, seatNumber: '1A' })]
@@ -519,7 +547,10 @@ describe('create booking flow', () => {
 
     server.use(
       http.get('/api/v1/booking/get-by-id', () => HttpResponse.json(pendingBooking)),
-      http.get('/api/v1/payment/get-by-id', () => HttpResponse.json(pendingPayment))
+      http.get('/api/v1/payment/get-by-id', () => {
+        paymentByIdCalls += 1;
+        return HttpResponse.json(pendingPayment);
+      })
     );
 
     renderWithRoute(<CreateBookingPage />, {
@@ -530,6 +561,11 @@ describe('create booking flow', () => {
     expect(await screen.findByText('Đang nạp tiền cho booking #55')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Thanh toán bằng ví' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Chọn chuyến bay' })).not.toBeInTheDocument();
+    expect((await screen.findAllByText('Selected fare')).length).toBeGreaterThan(0);
+    expect(requestCounts.flightById).toBe(0);
+    expect(requestCounts.seatInventory).toBe(0);
+    expect(requestCounts.walletMe).toBeGreaterThan(0);
+    expect(paymentByIdCalls).toBeGreaterThan(0);
   });
 
   it('shows warning and blocks payment deep-link when booking is not pending payment', async () => {

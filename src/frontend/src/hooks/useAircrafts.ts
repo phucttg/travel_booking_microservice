@@ -11,14 +11,15 @@ export const aircraftKeys = {
   detail: (id: number) => ['aircrafts', 'detail', id] as const
 };
 
-export const useGetAircrafts = () =>
+export const useGetAircrafts = (options?: { enabled?: boolean }) =>
   useQuery({
     queryKey: aircraftKeys.list,
     queryFn: async () => {
       const response = await aircraftApi.getAll();
       return response.data;
     },
-    staleTime: QUERY_STALE_TIME_MS
+    staleTime: QUERY_STALE_TIME_MS,
+    enabled: options?.enabled ?? true
   });
 
 export const useGetAircraftById = (id: number) =>

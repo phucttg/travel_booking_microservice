@@ -12,7 +12,8 @@ const { Text, Title } = Typography;
 
 type BookingSummaryProps = {
   flight: FlightDto;
-  selectedSeat?: SeatDto | null;
+  selectedSeat?: Pick<SeatDto, 'seatNumber' | 'seatClass' | 'price' | 'currency'> &
+    Partial<Pick<SeatDto, 'seatType'>>;
   passenger?: PassengerDto | null;
   airportsMap: Record<number, AirportDto>;
 };
@@ -91,10 +92,16 @@ export const BookingSummary = ({ flight, selectedSeat, passenger, airportsMap }:
               label="Seat"
               value={
                 selectedSeat
-                  ? `${selectedSeat.seatNumber} · ${seatClassLabels[selectedSeat.seatClass]} / ${seatTypeLabels[selectedSeat.seatType]}`
+                  ? `${selectedSeat.seatNumber} · ${seatClassLabels[selectedSeat.seatClass]}${selectedSeat.seatType ? ` / ${seatTypeLabels[selectedSeat.seatType]}` : ''}`
                   : 'Auto-assign Economy'
               }
-              hint={selectedSeat ? undefined : 'Business and First Class require explicit selection.'}
+              hint={
+                selectedSeat
+                  ? selectedSeat.seatType
+                    ? undefined
+                    : 'Seat restored from booking snapshot.'
+                  : 'Business and First Class require explicit selection.'
+              }
             />
           </Col>
           <Col xs={24} sm={12}>

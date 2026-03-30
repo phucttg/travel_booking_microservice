@@ -78,14 +78,20 @@ const assertTopupRequestsPayload = (
   return payload as unknown as WalletTopupRequestDto[];
 };
 
-export const useGetPaymentById = (id: number, options?: { refetchInterval?: number | false }) =>
+export const useGetPaymentById = (
+  id: number,
+  options?: {
+    enabled?: boolean;
+    refetchInterval?: number | false | ((query: any) => number | false | undefined);
+  }
+) =>
   useQuery({
     queryKey: paymentKeys.detail(id),
     queryFn: async () => {
       const response = await paymentApi.getById(id);
       return response.data;
     },
-    enabled: id > 0,
+    enabled: (options?.enabled ?? true) && id > 0,
     refetchInterval: options?.refetchInterval
   });
 

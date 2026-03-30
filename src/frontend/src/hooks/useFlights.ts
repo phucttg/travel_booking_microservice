@@ -35,14 +35,14 @@ export const useGetFlights = (params: PaginationParams) =>
     }
   });
 
-export const useGetFlightById = (id: number) =>
+export const useGetFlightById = (id: number, options?: { enabled?: boolean }) =>
   useQuery({
     queryKey: flightKeys.detail(id),
     queryFn: async () => {
       const response = await flightApi.getById(id);
       return response.data;
     },
-    enabled: id > 0
+    enabled: (options?.enabled ?? true) && id > 0
   });
 
 export const useCreateFlight = () => {

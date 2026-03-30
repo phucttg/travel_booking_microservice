@@ -71,6 +71,8 @@ const { Text } = Typography;
 
 type BookingStep = 0 | 1 | 2 | 3 | 4;
 type SeatViewMode = 'map' | 'list';
+type SelectedSeatSummary = Pick<SeatDto, 'seatNumber' | 'seatClass' | 'price' | 'currency'> &
+  Partial<Pick<SeatDto, 'seatType'>>;
 type InlineAlert = {
   type: 'success' | 'info' | 'warning' | 'error';
   message: string;
@@ -170,26 +172,47 @@ export const CreateBookingPage = () => {
 
   const flightsQuery = useGetFlights(flightParams);
   const bookingDeepLinkQuery = useGetBookingById(queryBookingId);
+  const flights = useMemo(() => flightsQuery.data?.data ?? [], [flightsQuery.data]);
+  const selectedFlightFromCurrentPage = useMemo(
+    () => flights.find((flight) => flight.id === selectedFlightId) || null,
+    [flights, selectedFlightId]
+  );
   const activePaymentId =
     checkout?.payment?.id ||
     (bookingDeepLinkQuery.data?.bookingStatus === BookingStatus.PENDING_PAYMENT
       ? (bookingDeepLinkQuery.data?.paymentId ?? 0)
       : 0);
-  const selectedFlightQuery = useGetFlightById(selectedFlightId);
-  const seatsQuery = useGetAvailableSeats(selectedFlightId);
+  const shouldFetchSelectedFlightDetail =
+    selectedFlightId > 0 && !selectedFlightFromCurrentPage && !flightsQuery.isLoading;
+  const shouldFetchSeatInventory = selectedFlightId > 0 && step === 1;
+  const shouldFetchAircraftCatalog = step === 0;
+  const shouldFetchWallet = step === 3 && Boolean(checkout);
+  const shouldFetchPayment = activePaymentId > 0;
+
+  const selectedFlightQuery = useGetFlightById(selectedFlightId, {
+    enabled: shouldFetchSelectedFlightDetail
+  });
+  const seatsQuery = useGetAvailableSeats(selectedFlightId, {
+    enabled: shouldFetchSeatInventory
+  });
   const airportsQuery = useGetAirports();
-  const aircraftsQuery = useGetAircrafts();
+  const aircraftsQuery = useGetAircrafts({
+    enabled: shouldFetchAircraftCatalog
+  });
   const passengerQuery = useGetPassengerByUserId(currentUserId, {
     enabled: queryBookingId <= 0 && step >= 2
   });
   const createBookingMutation = useCreateBooking();
-  const walletQuery = useGetWalletMe(true);
+  const walletQuery = useGetWalletMe(shouldFetchWallet);
   const payBookingWithWalletMutation = usePayBookingWithWallet();
   const paymentQuery = useGetPaymentById(activePaymentId, {
-    refetchInterval: step === 3 ? 5000 : false
+    enabled: shouldFetchPayment,
+    refetchInterval: (query) => {
+      const paymentStatus = query.state.data?.paymentStatus ?? checkout?.payment?.paymentStatus;
+      return step === 3 && paymentStatus === PaymentStatus.PENDING ? 5000 : false;
+    }
   });
 
-  const flights = useMemo(() => flightsQuery.data?.data ?? [], [flightsQuery.data]);
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const passengerAppError = passengerQuery.error ? normalizeProblemError(passengerQuery.error) : null;
   const isPassengerSyncing = !passengerQuery.data && passengerQuery.status === 'pending';
@@ -308,18 +331,34 @@ export const CreateBookingPage = () => {
   );
 
   const selectedFlight = useMemo(() => {
-    const fromList = flights.find((flight) => flight.id === selectedFlightId);
-    if (fromList) return fromList;
+    if (selectedFlightFromCurrentPage) return selectedFlightFromCurrentPage;
     if (selectedFlightQuery.data?.id === selectedFlightId) return selectedFlightQuery.data;
     return null;
-  }, [flights, selectedFlightId, selectedFlightQuery.data]);
+  }, [selectedFlightFromCurrentPage, selectedFlightId, selectedFlightQuery.data]);
 
   const selectedSeat = useMemo(
     () => seats.find((seat) => seat.seatNumber === selectedSeatNumber) || null,
     [seats, selectedSeatNumber]
   );
+  const selectedSeatSummary = useMemo<SelectedSeatSummary | null>(() => {
+    if (selectedSeat) {
+      return selectedSeat;
+    }
+
+    if (!checkout?.booking.seatNumber) {
+      return null;
+    }
+
+    return {
+      seatNumber: checkout.booking.seatNumber,
+      seatClass: checkout.booking.seatClass,
+      price: checkout.booking.price,
+      currency: checkout.booking.currency
+    };
+  }, [checkout, selectedSeat]);
   const selectedFlightIsBookable = isFlightBookable(selectedFlight);
   const currentPayment = paymentQuery.data || checkout?.payment || null;
+  const isWalletLoading = shouldFetchWallet && (walletQuery.isLoading || (walletQuery.isFetching && !walletQuery.data));
 
   const seatGrid = useMemo(() => buildSeatGrid(seats), [seats]);
   const paymentExpiresAt = currentPayment?.expiresAt ? new Date(currentPayment.expiresAt).valueOf() : null;
@@ -760,11 +799,13 @@ export const CreateBookingPage = () => {
               <Text type="secondary">
                 {`${selectedFlight.flightNumber} · ${formatDateLabel(selectedFlight.flightDate)} · ${formatScheduleStrip(selectedFlight.departureDate, selectedFlight.arriveDate)}`}
               </Text>
-              <Text type="secondary">{selectedSeat ? 'Selected fare' : 'Base fare'}</Text>
-              <Text strong>{formatCurrency(selectedSeat?.price || selectedFlight.price, selectedSeat?.currency || 'VND')}</Text>
+              <Text type="secondary">{selectedSeatSummary ? 'Selected fare' : 'Base fare'}</Text>
+              <Text strong>
+                {formatCurrency(selectedSeatSummary?.price || selectedFlight.price, selectedSeatSummary?.currency || 'VND')}
+              </Text>
               <Text type="secondary">
-                {selectedSeat
-                  ? `Checkout sẽ khóa đúng giá của ghế ${selectedSeat.seatNumber}.`
+                {selectedSeatSummary
+                  ? `Checkout sẽ khóa đúng giá của ghế ${selectedSeatSummary.seatNumber}.`
                   : 'Final total sẽ được khóa sau khi ghế được gán. Business và First Class cần được chọn thủ công.'}
               </Text>
             </Space>
@@ -819,9 +860,10 @@ export const CreateBookingPage = () => {
     const payment = currentPayment || checkout.payment;
     const paymentExpired = payment.paymentStatus === PaymentStatus.EXPIRED || countdownMs <= 0;
     const isResumedCheckout = queryBookingId > 0 && checkout.booking.id === queryBookingId;
-    const walletBalance = Number(walletQuery.data?.balance || 0);
+    const walletBalance = walletQuery.data?.balance;
     const walletCurrency = walletQuery.data?.currency || payment.currency;
-    const isWalletSufficient = walletBalance >= Number(payment.amount || 0);
+    const isWalletSufficient =
+      typeof walletBalance === 'number' ? walletBalance >= Number(payment.amount || 0) : null;
 
     return (
       <SectionCard title="Thanh toán" subtitle="Step 4 · Confirm the locked amount before the hold expires">
@@ -860,15 +902,33 @@ export const CreateBookingPage = () => {
               <Text strong>Thanh toán bằng ví</Text>
               <Text type="secondary">Booking sẽ được xác nhận ngay khi ví đủ tiền và thanh toán thành công.</Text>
               <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                <Text>{`Số dư ví hiện tại: ${formatCurrency(walletBalance, walletCurrency)}`}</Text>
+                <Text>
+                  {isWalletLoading
+                    ? 'Đang tải số dư ví...'
+                    : `Số dư ví hiện tại: ${formatCurrency(walletBalance || 0, walletCurrency)}`}
+                </Text>
                 <Text>{`Số tiền cần thanh toán: ${formatCurrency(payment.amount, payment.currency)}`}</Text>
                 <StatusPill
-                  label={isWalletSufficient ? 'Ví đủ tiền' : 'Ví không đủ tiền'}
-                  tone={isWalletSufficient ? 'success' : 'warning'}
+                  label={
+                    isWalletLoading
+                      ? 'Đang tải ví'
+                      : isWalletSufficient
+                        ? 'Ví đủ tiền'
+                        : 'Ví không đủ tiền'
+                  }
+                  tone={isWalletLoading ? 'neutral' : isWalletSufficient ? 'success' : 'warning'}
                   subtle
                 />
               </Space>
-              {!isWalletSufficient && (
+              {walletQuery.isError && typeof walletBalance !== 'number' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Không tải được số dư ví hiện tại"
+                  description="Vui lòng refresh ví để kiểm tra lại số dư trước khi thanh toán."
+                />
+              )}
+              {isWalletSufficient === false && (
                 <Alert
                   type="warning"
                   showIcon
@@ -895,7 +955,7 @@ export const CreateBookingPage = () => {
             <Button onClick={() => walletQuery.refetch()} loading={walletQuery.isFetching}>
               Refresh ví
             </Button>
-            {!isWalletSufficient ? (
+            {isWalletSufficient === false ? (
               <Button type="primary" onClick={() => navigate('/wallet')}>
                 Nạp ví
               </Button>
@@ -903,7 +963,7 @@ export const CreateBookingPage = () => {
               <Button
                 type="primary"
                 loading={payBookingWithWalletMutation.isPending}
-                disabled={paymentExpired || !checkout.payment.id}
+                disabled={paymentExpired || !checkout.payment.id || isWalletSufficient !== true}
                 onClick={async () => {
                   if (!payment.id) {
                     return;
@@ -1046,7 +1106,7 @@ export const CreateBookingPage = () => {
                 <Space direction="vertical" size={16} style={{ width: '100%' }}>
                   <BookingSummary
                     flight={selectedFlight}
-                    selectedSeat={selectedSeat}
+                    selectedSeat={selectedSeatSummary || undefined}
                     passenger={passengerQuery.data}
                     airportsMap={airportMap}
                   />
@@ -1054,8 +1114,8 @@ export const CreateBookingPage = () => {
                     <Space direction="vertical" size={8}>
                       <Text className="page-eyebrow">Flow notes</Text>
                       <Text type="secondary">
-                        {selectedSeat
-                          ? `Seat ${selectedSeat.seatNumber} selected · ${seatClassLabels[selectedSeat.seatClass]} / ${seatTypeLabels[selectedSeat.seatType]} · ${formatCurrency(selectedSeat.price, selectedSeat.currency)}`
+                        {selectedSeatSummary
+                          ? `Seat ${selectedSeatSummary.seatNumber} selected · ${seatClassLabels[selectedSeatSummary.seatClass]}${selectedSeatSummary.seatType ? ` / ${seatTypeLabels[selectedSeatSummary.seatType]}` : ''} · ${formatCurrency(selectedSeatSummary.price, selectedSeatSummary.currency)}`
                           : `No seat selected yet · Base fare ${formatCurrency(selectedFlight.price)} · Economy auto-assign if available`}
                       </Text>
                       <Text type="secondary">
