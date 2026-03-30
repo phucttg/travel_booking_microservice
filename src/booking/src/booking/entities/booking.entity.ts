@@ -59,6 +59,18 @@ export class Booking {
   paymentExpiresAt?: Date | null;
 
   @Column({ nullable: true })
+  seatHoldToken?: string | null;
+
+  @Column({ nullable: true })
+  seatHoldExpiresAt?: Date | null;
+
+  @Column({ nullable: true })
+  seatCommitRequestedAt?: Date | null;
+
+  @Column({ nullable: true })
+  seatCommittedAt?: Date | null;
+
+  @Column({ nullable: true })
   confirmedAt?: Date | null;
 
   @Column()

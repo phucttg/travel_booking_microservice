@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { RabbitmqMessageEnvelope } from 'building-blocks/contracts/message-envelope.contract';
 import {
   BookingCreated,
@@ -8,17 +9,19 @@ import {
   PaymentRefundRequested,
   PaymentSucceeded
 } from 'building-blocks/contracts/payment.contract';
-import { IBookingRepository } from '@/data/repositories/booking.repository';
 import { IProcessedMessageRepository } from '@/booking/repositories/processed-message.repository';
 import { Booking } from '@/booking/entities/booking.entity';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
+import { prepareOutboxMessage } from 'building-blocks/rabbitmq/outbox-message';
+import { ProcessedMessage } from '@/booking/entities/processed-message.entity';
+import { OutboxMessage } from '@/booking/entities/outbox-message.entity';
+import { BookingSeatWorkflowService } from '@/booking/services/booking-seat-workflow.service';
 
 @Injectable()
 export class PaymentSucceededConsumerHandler {
   constructor(
-    @Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository,
     @Inject('IProcessedMessageRepository') private readonly processedMessageRepository: IProcessedMessageRepository,
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher
+    private readonly dataSource: DataSource,
+    private readonly bookingSeatWorkflowService: BookingSeatWorkflowService
   ) {}
 
   async handle(
@@ -27,53 +30,82 @@ export class PaymentSucceededConsumerHandler {
     envelope?: RabbitmqMessageEnvelope<PaymentSucceeded> | null
   ): Promise<void> {
     const messageKey = envelope?.messageId || envelope?.idempotencyKey;
-    const isFreshMessage = await this.processedMessageRepository.registerProcessedMessage(
-      PaymentSucceededConsumerHandler.name,
-      messageKey
-    );
+    const consumer = PaymentSucceededConsumerHandler.name;
 
-    if (!isFreshMessage) {
+    if (await this.processedMessageRepository.hasProcessedMessage(consumer, messageKey)) {
       return;
     }
 
-    const booking = await this.bookingRepository.findBookingByPaymentId(message.paymentId);
-    if (!booking) {
-      return;
-    }
+    await this.dataSource.transaction(async (manager) => {
+      const processedMessageRepository = manager.getRepository(ProcessedMessage);
+      const bookingRepository = manager.getRepository(Booking);
+      const outboxRepository = manager.getRepository(OutboxMessage);
+      const existingProcessedMessage = messageKey
+        ? await processedMessageRepository.findOneBy({
+            consumer,
+            messageKey
+          })
+        : null;
 
-    if ([BookingStatus.CANCELED, BookingStatus.EXPIRED].includes(booking.bookingStatus)) {
-      await this.rabbitmqPublisher.publishMessage(
-        new PaymentRefundRequested({
-          paymentId: message.paymentId,
-          bookingId: booking.id,
-          userId: booking.userId,
-          amount: booking.price,
-          currency: booking.currency,
-          reason: 'Payment completed after booking stopped being active',
-          requestedAt: new Date()
-        })
-      );
-      return;
-    }
+      if (existingProcessedMessage) {
+        return;
+      }
 
-    if (booking.bookingStatus === BookingStatus.CONFIRMED) {
-      return;
-    }
+      const booking = await bookingRepository
+        .createQueryBuilder('booking')
+        .setLock('pessimistic_write')
+        .where('booking.paymentId = :paymentId', { paymentId: message.paymentId })
+        .getOne();
 
-    const confirmedAt = message.occurredAt ? new Date(message.occurredAt) : new Date();
-    const confirmedBooking = await this.bookingRepository.updateBooking(
-      new Booking({
-        ...booking,
-        bookingStatus: BookingStatus.CONFIRMED,
-        confirmedAt,
-        updatedAt: confirmedAt
-      })
-    );
+      if (!booking) {
+        throw new NotFoundException(`Booking for payment ${message.paymentId} not found`);
+      }
 
-    await this.rabbitmqPublisher.publishMessage(
-      new BookingCreated({
-        ...confirmedBooking
-      })
-    );
+      if ([BookingStatus.CANCELED, BookingStatus.EXPIRED].includes(booking.bookingStatus)) {
+        await this.bookingSeatWorkflowService.enqueueRefund(
+          manager,
+          new Booking({
+            ...booking,
+            paymentId: message.paymentId
+          }),
+          'Payment completed after booking stopped being active',
+          new Date()
+        );
+      } else if (booking.bookingStatus !== BookingStatus.CONFIRMED) {
+        const confirmedAt = message.occurredAt ? new Date(message.occurredAt) : new Date();
+        const confirmedBooking = await bookingRepository.save(
+          new Booking({
+            ...booking,
+            bookingStatus: BookingStatus.CONFIRMED,
+            confirmedAt,
+            seatCommitRequestedAt: booking.seatHoldToken ? confirmedAt : booking.seatCommitRequestedAt,
+            updatedAt: confirmedAt
+          })
+        );
+
+        if (confirmedBooking.seatHoldToken) {
+          await this.bookingSeatWorkflowService.enqueueSeatCommit(manager, confirmedBooking, confirmedAt);
+        }
+
+        await outboxRepository.insert(
+          prepareOutboxMessage(
+            new BookingCreated({
+              ...confirmedBooking
+            }),
+            {
+              occurredAt: confirmedAt
+            }
+          )
+        );
+      }
+
+      if (messageKey) {
+        await processedMessageRepository.insert({
+          consumer,
+          messageKey,
+          createdAt: new Date()
+        });
+      }
+    });
   }
 }

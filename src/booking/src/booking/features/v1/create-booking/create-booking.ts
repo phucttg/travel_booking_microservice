@@ -16,6 +16,7 @@ import {
   UseGuards
 } from '@nestjs/common';
 import { CommandBus, CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { DataSource } from 'typeorm';
 import { BookingCheckoutDto } from '@/booking/dtos/booking-checkout.dto';
 import { BookingStatus } from '@/booking/enums/booking-status.enum';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
@@ -29,6 +30,8 @@ import { CreateBookingRequestDto } from '@/booking/dtos/create-booking-request.d
 import {
   FlightStatus,
   PREMIUM_SEAT_SELECTION_REQUIRED_CODE,
+  ReserveSeatRequestDto,
+  SeatReservationDto,
   SeatReleaseReason,
   SeatReleaseRequested
 } from 'building-blocks/contracts/flight.contract';
@@ -42,6 +45,7 @@ import { IdempotencyRecord } from '@/booking/entities/idempotency-record.entity'
 import { createRequestHash } from '@/booking/utils/request-hash';
 import { IPaymentClient } from '@/booking/http-client/services/payment/payment.client';
 import { toBookingDto } from '@/booking/utils/booking-dto';
+import { BookingSeatWorkflowService } from '@/booking/services/booking-seat-workflow.service';
 
 type JwtRequest = Request & {
   user?: {
@@ -114,7 +118,9 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
     @Inject('IPassengerClient') private passengerClient: IPassengerClient,
     @Inject('IPaymentClient') private paymentClient: IPaymentClient,
     @Inject('IIdempotencyRepository') private idempotencyRepository: IIdempotencyRepository,
-    @Inject('IRabbitmqPublisher') private rabbitmqPublisher: IRabbitmqPublisher
+    private readonly dataSource: DataSource,
+    @Inject('IRabbitmqPublisher') private rabbitmqPublisher: IRabbitmqPublisher,
+    private readonly bookingSeatWorkflowService: BookingSeatWorkflowService
   ) {}
 
   async execute(command: CreateBooking): Promise<BookingCheckoutDto> {
@@ -156,6 +162,8 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
       throw new NotFoundException('Flight is no longer available for booking');
     }
 
+    await this.expireStalePendingBookingsForUserAndFlight(command.currentUserId, flightDto.id);
+
     const existingActiveBooking = await this.bookingRepository.findActiveBookingByUserAndFlight(
       command.currentUserId,
       flightDto.id
@@ -173,11 +181,15 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
       });
     }
 
-    const reservedSeat = await this.reserveSeatForBooking({
-      seatNumber: command.seatNumber,
-      flightId: flightDto?.id
-    });
     const paymentExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const holdUntil = new Date(paymentExpiresAt.getTime() + 2 * 60 * 1000);
+    const reservedSeat = await this.reserveSeatForBooking(
+      new ReserveSeatRequestDto({
+        seatNumber: command.seatNumber,
+        flightId: flightDto?.id,
+        holdUntil
+      })
+    );
 
     let bookingEntity: Booking;
     try {
@@ -198,7 +210,9 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
           passengerId: passengerDto.id,
           seatClass: reservedSeat.seatClass,
           bookingStatus: BookingStatus.PENDING_PAYMENT,
-          paymentExpiresAt
+          paymentExpiresAt,
+          seatHoldToken: reservedSeat.holdToken || null,
+          seatHoldExpiresAt: reservedSeat.holdExpiresAt ? new Date(reservedSeat.holdExpiresAt) : null
         })
       );
     } catch (error) {
@@ -217,7 +231,8 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
             flightId: flightDto?.id,
             seatNumber: reservedSeat.seatNumber,
             reason: SeatReleaseReason.BOOKING_CREATE_FAILED,
-            requestedAt: new Date()
+            requestedAt: new Date(),
+            holdToken: reservedSeat.holdToken || undefined
           })
         );
       } catch (compensationError) {
@@ -287,30 +302,32 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
 
       return response;
     } catch (error) {
-      await this.bookingRepository.updateBooking(
-        new Booking({
-          ...bookingEntity,
-          bookingStatus: BookingStatus.EXPIRED,
-          expiredAt: new Date(),
-          updatedAt: new Date()
-        })
-      );
+      await this.dataSource.transaction(async (manager) => {
+        const bookingRepository = manager.getRepository(Booking);
+        const lockedBooking = await bookingRepository.findOne({
+          where: { id: bookingEntity.id },
+          lock: { mode: 'pessimistic_write' }
+        });
 
-      await this.rabbitmqPublisher.publishMessage(
-        new SeatReleaseRequested({
-          bookingId: bookingEntity.id,
-          flightId: flightDto.id,
-          seatNumber: bookingEntity.seatNumber,
-          reason: SeatReleaseReason.PAYMENT_INTENT_CREATE_FAILED,
-          requestedAt: new Date()
-        })
-      );
+        if (!lockedBooking) {
+          throw error;
+        }
+
+        await this.bookingSeatWorkflowService.expirePendingBooking(
+          manager,
+          new Booking({
+            ...lockedBooking
+          }),
+          SeatReleaseReason.PAYMENT_INTENT_CREATE_FAILED,
+          new Date()
+        );
+      });
 
       throw error;
     }
   }
 
-  private async reserveSeatForBooking(request: { seatNumber?: string; flightId: number }) {
+  private async reserveSeatForBooking(request: ReserveSeatRequestDto): Promise<SeatReservationDto> {
     try {
       return await this.flightClient.reserveSeat(request);
     } catch (error) {
@@ -351,5 +368,33 @@ export class CreateBookingHandler implements ICommandHandler<CreateBooking> {
     } catch {
       return null;
     }
+  }
+
+  private async expireStalePendingBookingsForUserAndFlight(userId: number, flightId: number): Promise<void> {
+    const now = new Date();
+
+    await this.dataSource.transaction(async (manager) => {
+      const expiredPendingBookings = await manager
+        .getRepository(Booking)
+        .createQueryBuilder('booking')
+        .setLock('pessimistic_write')
+        .where('booking.userId = :userId', { userId })
+        .andWhere('booking.flightId = :flightId', { flightId })
+        .andWhere('booking.bookingStatus = :pendingStatus', {
+          pendingStatus: BookingStatus.PENDING_PAYMENT
+        })
+        .andWhere('booking.seatHoldExpiresAt IS NOT NULL')
+        .andWhere('booking.seatHoldExpiresAt <= :now', { now })
+        .getMany();
+
+      for (const expiredPendingBooking of expiredPendingBookings) {
+        await this.bookingSeatWorkflowService.expirePendingBooking(
+          manager,
+          expiredPendingBooking,
+          SeatReleaseReason.BOOKING_EXPIRED,
+          now
+        );
+      }
+    });
   }
 }

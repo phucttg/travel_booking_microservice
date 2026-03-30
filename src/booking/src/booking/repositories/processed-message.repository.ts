@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessedMessage } from '@/booking/entities/processed-message.entity';
 
 export interface IProcessedMessageRepository {
+  hasProcessedMessage(consumer: string, messageKey: string): Promise<boolean>;
   registerProcessedMessage(consumer: string, messageKey: string): Promise<boolean>;
 }
 
@@ -11,6 +12,19 @@ export class ProcessedMessageRepository implements IProcessedMessageRepository {
     @InjectRepository(ProcessedMessage)
     private readonly processedMessageRepository: Repository<ProcessedMessage>
   ) {}
+
+  async hasProcessedMessage(consumer: string, messageKey: string): Promise<boolean> {
+    if (!messageKey) {
+      return false;
+    }
+
+    return await this.processedMessageRepository.exist({
+      where: {
+        consumer,
+        messageKey
+      }
+    });
+  }
 
   async registerProcessedMessage(consumer: string, messageKey: string): Promise<boolean> {
     if (!messageKey) {

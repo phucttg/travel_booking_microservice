@@ -2,7 +2,8 @@ import axios from 'axios';
 import {
   FlightDto,
   ReserveSeatRequestDto,
-  SeatDto
+  SeatReservationDto,
+  SeatStateDto
 } from 'building-blocks/contracts/flight.contract';
 import { Injectable } from '@nestjs/common';
 import { RequestContext } from 'building-blocks/context/context';
@@ -12,7 +13,9 @@ import { AxiosInstance } from 'axios';
 export interface IFlightClient {
   getFlightById(id: number): Promise<FlightDto>;
 
-  reserveSeat(request: ReserveSeatRequestDto): Promise<SeatDto>;
+  reserveSeat(request: ReserveSeatRequestDto): Promise<SeatReservationDto>;
+
+  getSeatState(flightId: number, seatNumber: string): Promise<SeatStateDto>;
 }
 
 @Injectable()
@@ -40,10 +43,21 @@ export class FlightClient implements IFlightClient {
     return result?.data;
   }
 
-  async reserveSeat(request: ReserveSeatRequestDto): Promise<SeatDto> {
-    const result = await this.client.post<SeatDto>(`/api/v1/seat/reserve`, request, {
+  async reserveSeat(request: ReserveSeatRequestDto): Promise<SeatReservationDto> {
+    const result = await this.client.post<SeatReservationDto>(`/api/v1/seat/reserve`, request, {
       headers: {
         Authorization: RequestContext.getAuthorization()
+      }
+    });
+
+    return result?.data;
+  }
+
+  async getSeatState(flightId: number, seatNumber: string): Promise<SeatStateDto> {
+    const result = await this.client.get<SeatStateDto>(`/api/v1/seat/get-state`, {
+      params: {
+        flightId,
+        seatNumber
       }
     });
 

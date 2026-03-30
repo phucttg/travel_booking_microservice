@@ -54,9 +54,14 @@ export class BookingRepository implements IBookingRepository {
       .createQueryBuilder('booking')
       .where('booking.userId = :userId', { userId })
       .andWhere('booking.flightId = :flightId', { flightId })
-      .andWhere('booking.bookingStatus IN (:...statuses)', {
-        statuses: [0, 1]
-      })
+      .andWhere(
+        '(booking.bookingStatus = :confirmedStatus OR (booking.bookingStatus = :pendingStatus AND (booking.seatHoldExpiresAt IS NULL OR booking.seatHoldExpiresAt > :now)))',
+        {
+          confirmedStatus: 1,
+          pendingStatus: 0,
+          now: new Date()
+        }
+      )
       .orderBy('booking.id', 'DESC')
       .getOne();
   }

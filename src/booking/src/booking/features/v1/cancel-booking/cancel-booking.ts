@@ -14,16 +14,17 @@ import {
 } from '@nestjs/common';
 import { CommandBus, CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { Request, Response } from 'express';
+import { DataSource } from 'typeorm';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
 import { IBookingRepository } from '@/data/repositories/booking.repository';
 import { IFlightClient } from '@/booking/http-client/services/flight/flight.client';
 import { IPaymentClient } from '@/booking/http-client/services/payment/payment.client';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { Booking } from '@/booking/entities/booking.entity';
 import { Role } from 'building-blocks/contracts/identity.contract';
-import { FlightStatus, SeatReleaseReason, SeatReleaseRequested } from 'building-blocks/contracts/flight.contract';
+import { FlightStatus, SeatReleaseReason } from 'building-blocks/contracts/flight.contract';
 import { BookingStatus } from '@/booking/enums/booking-status.enum';
-import { PaymentRefundRequested, PaymentStatus } from 'building-blocks/contracts/payment.contract';
+import { PaymentStatus } from 'building-blocks/contracts/payment.contract';
+import { BookingSeatWorkflowService } from '@/booking/services/booking-seat-workflow.service';
 
 type JwtRequest = Request & {
   user?: {
@@ -85,69 +86,73 @@ export class CancelBookingHandler implements ICommandHandler<CancelBooking> {
     @Inject('IBookingRepository') private readonly bookingRepository: IBookingRepository,
     @Inject('IFlightClient') private readonly flightClient: IFlightClient,
     @Inject('IPaymentClient') private readonly paymentClient: IPaymentClient,
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher
+    private readonly dataSource: DataSource,
+    private readonly bookingSeatWorkflowService: BookingSeatWorkflowService
   ) {}
 
   async execute(command: CancelBooking): Promise<void> {
-    const booking = await this.bookingRepository.findBookingById(
-      command.id,
-      command.isAdmin ? undefined : command.currentUserId
-    );
+    await this.dataSource.transaction(async (manager) => {
+      const bookingQuery = manager
+        .getRepository(Booking)
+        .createQueryBuilder('booking')
+        .setLock('pessimistic_write')
+        .where('booking.id = :id', { id: command.id });
 
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
+      if (!command.isAdmin && typeof command.currentUserId === 'number') {
+        bookingQuery.andWhere('booking.userId = :userId', {
+          userId: command.currentUserId
+        });
+      }
 
-    if (!booking.flightId) {
-      throw new ConflictException('Legacy bookings cannot be canceled automatically');
-    }
+      const booking = await bookingQuery.getOne();
 
-    if ([BookingStatus.CANCELED, BookingStatus.EXPIRED].includes(booking.bookingStatus)) {
-      return;
-    }
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
 
-    const flight = await this.flightClient.getFlightById(booking.flightId);
+      if (!booking.flightId) {
+        throw new ConflictException('Legacy bookings cannot be canceled automatically');
+      }
 
-    if ([FlightStatus.COMPLETED, FlightStatus.FLYING].includes(flight.flightStatus)) {
-      throw new ConflictException('Booking can no longer be canceled');
-    }
+      if ([BookingStatus.CANCELED, BookingStatus.EXPIRED].includes(booking.bookingStatus)) {
+        return;
+      }
 
-    const payment = booking.paymentId ? await this.tryGetPayment(booking.paymentId) : null;
-    const canceledBooking = new Booking({
-      ...booking,
-      bookingStatus: BookingStatus.CANCELED,
-      canceledAt: new Date(),
-      updatedAt: new Date()
+      const flight = await this.flightClient.getFlightById(booking.flightId);
+
+      if ([FlightStatus.COMPLETED, FlightStatus.FLYING].includes(flight.flightStatus)) {
+        throw new ConflictException('Booking can no longer be canceled');
+      }
+
+      const canceledAt = new Date();
+      const payment = booking.paymentId ? await this.tryGetPayment(booking.paymentId) : null;
+      const canceledBooking = await this.bookingSeatWorkflowService.cancelBooking(manager, booking, canceledAt);
+
+      if (booking.bookingStatus === BookingStatus.PENDING_PAYMENT) {
+        await this.bookingSeatWorkflowService.enqueuePendingSeatRelease(
+          manager,
+          canceledBooking,
+          SeatReleaseReason.BOOKING_CANCELED,
+          canceledAt
+        );
+      } else {
+        await this.bookingSeatWorkflowService.enqueueConfirmedSeatRelease(
+          manager,
+          canceledBooking,
+          SeatReleaseReason.BOOKING_CANCELED,
+          canceledAt
+        );
+      }
+
+      if (payment && payment.paymentStatus === PaymentStatus.SUCCEEDED) {
+        await this.bookingSeatWorkflowService.enqueueRefund(
+          manager,
+          canceledBooking,
+          'Booking canceled by user',
+          canceledAt
+        );
+      }
     });
-
-    await this.bookingRepository.updateBooking(canceledBooking);
-    await this.publishSeatRelease(canceledBooking, SeatReleaseReason.BOOKING_CANCELED);
-
-    if (payment && payment.paymentStatus === PaymentStatus.SUCCEEDED) {
-      await this.rabbitmqPublisher.publishMessage(
-        new PaymentRefundRequested({
-          paymentId: payment.id,
-          bookingId: canceledBooking.id,
-          userId: canceledBooking.userId,
-          amount: canceledBooking.price,
-          currency: canceledBooking.currency,
-          reason: 'Booking canceled by user',
-          requestedAt: new Date()
-        })
-      );
-    }
-  }
-
-  private async publishSeatRelease(booking: Booking, reason: SeatReleaseReason): Promise<void> {
-    await this.rabbitmqPublisher.publishMessage(
-      new SeatReleaseRequested({
-        bookingId: booking.id,
-        flightId: booking.flightId,
-        seatNumber: booking.seatNumber,
-        reason,
-        requestedAt: new Date()
-      })
-    );
   }
 
   private async tryGetPayment(paymentId: number) {

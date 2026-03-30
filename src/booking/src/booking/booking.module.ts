@@ -25,6 +25,7 @@ import {
 } from '@/booking/features/v1/cancel-booking/cancel-booking';
 import { IdempotencyRecord } from '@/booking/entities/idempotency-record.entity';
 import { ProcessedMessage } from '@/booking/entities/processed-message.entity';
+import { OutboxMessage } from '@/booking/entities/outbox-message.entity';
 import { IdempotencyRepository } from '@/booking/repositories/idempotency.repository';
 import { ProcessedMessageRepository } from '@/booking/repositories/processed-message.repository';
 import { PaymentSucceeded } from 'building-blocks/contracts/payment.contract';
@@ -32,12 +33,16 @@ import { PaymentExpired } from 'building-blocks/contracts/payment.contract';
 import { IRabbitmqConsumer } from 'building-blocks/rabbitmq/rabbitmq-subscriber';
 import { PaymentSucceededConsumerHandler } from '@/booking/consumers/payment-succeeded.consumer';
 import { PaymentExpiredConsumerHandler } from '@/booking/consumers/payment-expired.consumer';
+import { BookingOutboxDispatcherService } from '@/booking/services/booking-outbox-dispatcher.service';
+import { BookingSeatWorkflowService } from '@/booking/services/booking-seat-workflow.service';
+import { BookingPendingSeatSweeperService } from '@/booking/services/booking-pending-seat-sweeper.service';
+import { BookingSeatCommitReconcilerService } from '@/booking/services/booking-seat-commit-reconciler.service';
 
 @Module({
   imports: [
     CqrsModule,
     RabbitmqModule.forRoot(),
-    TypeOrmModule.forFeature([Booking, IdempotencyRecord, ProcessedMessage])
+    TypeOrmModule.forFeature([Booking, IdempotencyRecord, ProcessedMessage, OutboxMessage])
   ],
   controllers: [CreateBookingController, GetBookingsController, GetBookingByIdController, CancelBookingController],
   providers: [
@@ -47,6 +52,10 @@ import { PaymentExpiredConsumerHandler } from '@/booking/consumers/payment-expir
     CancelBookingHandler,
     PaymentSucceededConsumerHandler,
     PaymentExpiredConsumerHandler,
+    BookingOutboxDispatcherService,
+    BookingSeatWorkflowService,
+    BookingPendingSeatSweeperService,
+    BookingSeatCommitReconcilerService,
     {
       provide: 'IBookingRepository',
       useClass: BookingRepository
@@ -78,15 +87,21 @@ export class BookingModule implements OnApplicationBootstrap {
   constructor(
     @Inject('IRabbitmqConsumer') private readonly rabbitmqConsumer: IRabbitmqConsumer,
     private readonly paymentSucceededConsumerHandler: PaymentSucceededConsumerHandler,
-    private readonly paymentExpiredConsumerHandler: PaymentExpiredConsumerHandler
+    private readonly paymentExpiredConsumerHandler: PaymentExpiredConsumerHandler,
+    private readonly bookingOutboxDispatcherService: BookingOutboxDispatcherService,
+    private readonly bookingPendingSeatSweeperService: BookingPendingSeatSweeperService,
+    private readonly bookingSeatCommitReconcilerService: BookingSeatCommitReconcilerService
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.rabbitmqConsumer.consumeMessage(
+    void this.bookingOutboxDispatcherService;
+    void this.bookingPendingSeatSweeperService;
+    void this.bookingSeatCommitReconcilerService;
+    void this.rabbitmqConsumer.consumeMessage(
       PaymentSucceeded,
       this.paymentSucceededConsumerHandler.handle.bind(this.paymentSucceededConsumerHandler)
     );
-    await this.rabbitmqConsumer.consumeMessage(
+    void this.rabbitmqConsumer.consumeMessage(
       PaymentExpired,
       this.paymentExpiredConsumerHandler.handle.bind(this.paymentExpiredConsumerHandler)
     );

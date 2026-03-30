@@ -7,6 +7,7 @@
     "license": "MIT",
     "scripts": {
         "build": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && nest build -p tsconfig.build.json && npm run verify:swagger-runtime",
+        "backfill:seat-booking-links": "node ./scripts/backfill-seat-reserved-booking-id.js",
         "dev": "nest start --watch",
         "format": "prettier --write \"**/*.{ts,js}\"",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
