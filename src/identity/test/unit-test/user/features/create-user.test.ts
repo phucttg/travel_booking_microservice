@@ -1,59 +1,35 @@
-import { UserCreated } from 'building-blocks/contracts/identity.contract';
-import * as TypeMoq from 'typemoq';
-import { FakeUser } from '@tests/shared/fakes/user/fake-user.entity';
-import { User } from '@/user/entities/user.entity';
-import { IUserRepository } from '@/data/repositories/user.repository';
 import { UserDto } from '@/user/dtos/user.dto';
 import { FakeCreateUser } from '@tests/shared/fakes/user/fake-create-user';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
 import { CreateUserHandler } from '@/user/features/v1/create-user/create-user';
+import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 
 describe('unit test for create user', () => {
   let createUserHandler: CreateUserHandler;
+  let identityUserWriteService: jest.Mocked<IdentityUserWriteService>;
 
-  const fakeUser: User = FakeUser.generate();
-
-  const mockUserRepository: TypeMoq.IMock<IUserRepository> = TypeMoq.Mock.ofType<IUserRepository>();
-  const mockPublisher: TypeMoq.IMock<IRabbitmqPublisher> =
-    TypeMoq.Mock.ofType<IRabbitmqPublisher>();
+  const fakeUserDto = new UserDto({
+    id: 1,
+    email: 'user@example.com',
+    name: 'Test User'
+  });
 
   beforeEach(() => {
-    createUserHandler = new CreateUserHandler(mockPublisher.object, mockUserRepository.object);
+    identityUserWriteService = {
+      createUser: jest.fn()
+    } as unknown as jest.Mocked<IdentityUserWriteService>;
+    createUserHandler = new CreateUserHandler(identityUserWriteService);
   });
 
   it('should create a user and retrieve a valid data', async () => {
-    mockUserRepository
-      .setup((x) => x.findUserByEmail(TypeMoq.It.isAnyString()))
-      .returns(() => null);
+    const createUserCommand = FakeCreateUser.generate();
+    identityUserWriteService.createUser.mockResolvedValue(fakeUserDto);
 
-    // Mock userRepository's behavior when creating a user
-    mockUserRepository
-      .setup((x) => x.createUser(TypeMoq.It.isAnyObject(User)))
-      .returns(() => Promise.resolve(fakeUser));
+    const result: UserDto = await createUserHandler.execute(createUserCommand);
 
-    // Mock publisher's behavior when publishing a user created
-    mockPublisher
-      .setup((x) =>
-        x.publishMessage(TypeMoq.It.isAnyObject(UserCreated), TypeMoq.It.isAny())
-      )
-      .returns(() => Promise.resolve());
-
-    const result: UserDto = await createUserHandler.execute(FakeCreateUser.generate(fakeUser));
-
-    // Verify that the publishMessage method was called exactly once
-    mockUserRepository.verify(
-      (x) => x.findUserByEmail(TypeMoq.It.isAnyString()),
-      TypeMoq.Times.once()
-    );
-    mockPublisher.verify(
-      (x) => x.publishMessage(TypeMoq.It.isAnyObject(UserCreated), TypeMoq.It.isAny()),
-      TypeMoq.Times.once()
-    );
-
-    mockUserRepository.verify(
-      (x) => x.createUser(TypeMoq.It.isAnyObject(User)),
-      TypeMoq.Times.once()
-    );
+    expect(identityUserWriteService.createUser).toHaveBeenCalledWith({
+      ...createUserCommand,
+      isEmailVerified: false
+    });
     expect(result).not.toBeNull();
   });
 });

@@ -1,29 +1,15 @@
 import { UserDto } from '@/user/dtos/user.dto';
 import { Role } from '@/user/enums/role.enum';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
-import {
-  Body,
-  ConflictException,
-  Controller,
-  HttpStatus,
-  Inject,
-  Post,
-  Res,
-  UseGuards
-} from '@nestjs/common';
+import { Body, Controller, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { CommandBus, CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { User } from '@/user/entities/user.entity';
-import { IUserRepository } from '@/data/repositories/user.repository';
 import { Response } from 'express';
 import { JwtGuard } from 'building-blocks/passport/jwt.guard';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
-import { UserCreated } from 'building-blocks/contracts/identity.contract';
-import { encryptPassword } from 'building-blocks/utils/encryption';
 import { Roles } from '@/common/auth/roles.decorator';
 import { RolesGuard } from '@/common/auth/roles.guard';
-import mapper from '@/user/mapping';
 import { CreateUserRequestDto } from '@/user/dtos/create-user-request.dto';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
+import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 
 export class CreateUser {
   email: string;
@@ -69,34 +55,12 @@ export class CreateUserController {
 
 @CommandHandler(CreateUser)
 export class CreateUserHandler implements ICommandHandler<CreateUser> {
-  constructor(
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher,
-    @Inject('IUserRepository') private readonly userRepository: IUserRepository
-  ) {}
+  constructor(private readonly identityUserWriteService: IdentityUserWriteService) {}
+
   async execute(command: CreateUser): Promise<UserDto> {
-    const existUser = await this.userRepository.findUserByEmail(command.email);
-
-    if (existUser) {
-      throw new ConflictException('Email already taken');
-    }
-
-    const userEntity = await this.userRepository.createUser(
-      new User({
-        email: command.email,
-        name: command.name,
-        password: await encryptPassword(command.password),
-        role: command.role,
-        passportNumber: command.passportNumber,
-        age: command.age,
-        passengerType: command.passengerType,
-        isEmailVerified: false
-      })
-    );
-
-    await this.rabbitmqPublisher.publishMessage(new UserCreated(userEntity), {
-      useEnvelope: true
+    return await this.identityUserWriteService.createUser({
+      ...command,
+      isEmailVerified: false
     });
-
-    return mapper.map<User, UserDto>(userEntity, new UserDto());
   }
 }

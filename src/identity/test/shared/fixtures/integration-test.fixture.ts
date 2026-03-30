@@ -24,6 +24,11 @@ import { Role } from '@/user/enums/role.enum';
 import { createGlobalValidationPipe } from 'building-blocks/validation/validation.pipe';
 import { ErrorHandlersFilter } from 'building-blocks/filters/error-handlers.filter';
 
+type GuardUser = {
+    userId: number;
+    role: Role;
+};
+
 export class Fixture {
     userRepository: IUserRepository;
     authRepository: IAuthRepository;
@@ -35,10 +40,16 @@ export class Fixture {
     commandBus: CommandBus;
     queryBus: QueryBus;
     app: INestApplication;
+    setAuthenticatedUser?: (user: GuardUser | null) => void;
 }
 
-export class IntegrationTestFixture {
+class BaseHttpFixture {
     private fixture: Fixture = new Fixture();
+
+    constructor(
+        private readonly useMockGuard: boolean,
+        private readonly initialGuardUser: GuardUser | null = {userId: 1, role: Role.ADMIN}
+    ) {}
 
     public async initializeFixture(): Promise<Fixture> {
         const [postgresContainer, postgresOptions] = await new PostgresContainer().start();
@@ -47,7 +58,9 @@ export class IntegrationTestFixture {
         const rabbitmqContainer = await new RabbitmqContainer().start();
         this.fixture.rabbitmqContainer = rabbitmqContainer;
 
-        const module: TestingModule = await Test.createTestingModule({
+        let currentGuardUser = this.initialGuardUser;
+
+        let moduleBuilder = Test.createTestingModule({
             imports: [
                 PassportModule,
                 JwtModule.register({
@@ -70,16 +83,27 @@ export class IntegrationTestFixture {
                 ])
             ],
             providers: [JwtStrategy, CommandBus, QueryBus]
-        })
-            .overrideGuard(JwtGuard)
-            .useValue({
+        });
+
+        if (this.useMockGuard) {
+            moduleBuilder = moduleBuilder.overrideGuard(JwtGuard).useValue({
                 canActivate: (context: ExecutionContext) => {
+                    if (!currentGuardUser) {
+                        return false;
+                    }
+
                     const req = context.switchToHttp().getRequest();
-                    req.user = {userId: 1, username: 'test_user', role: Role.ADMIN};
+                    req.user = {
+                        userId: currentGuardUser.userId,
+                        username: 'test_user',
+                        role: currentGuardUser.role
+                    };
                     return true;
                 }
-            })
-            .compile();
+            });
+        }
+
+        const module: TestingModule = await moduleBuilder.compile();
 
         this.fixture.app = module.createNestApplication();
 
@@ -103,6 +127,12 @@ export class IntegrationTestFixture {
         this.fixture.commandBus = module.get<CommandBus>(CommandBus);
         this.fixture.queryBus = module.get<QueryBus>(QueryBus);
 
+        if (this.useMockGuard) {
+            this.fixture.setAuthenticatedUser = (user: GuardUser | null) => {
+                currentGuardUser = user;
+            };
+        }
+
         return this.fixture;
     }
 
@@ -118,5 +148,23 @@ export class IntegrationTestFixture {
         if (this.fixture.postgresContainer) {
             await this.fixture.postgresContainer.stop();
         }
+    }
+}
+
+export class IntegrationTestFixture extends BaseHttpFixture {
+    constructor() {
+        super(true, {userId: 1, role: Role.ADMIN});
+    }
+}
+
+export class ProtectedHttpFixture extends BaseHttpFixture {
+    constructor(initialGuardUser: GuardUser = {userId: 1, role: Role.ADMIN}) {
+        super(true, initialGuardUser);
+    }
+}
+
+export class PublicHttpFixture extends BaseHttpFixture {
+    constructor() {
+        super(false);
     }
 }

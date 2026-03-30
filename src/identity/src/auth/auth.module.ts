@@ -17,16 +17,26 @@ import {
 import { User } from '@/user/entities/user.entity';
 import { UserRepository } from '@/data/repositories/user.repository';
 import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
+import { RegisterController, RegisterHandler } from '@/auth/features/v1/register/register';
+import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 
 @Module({
   imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([Token, User])],
-  controllers: [LoginController, LogoutController, RefreshTokenController, ValidateAccessTokenController],
+  controllers: [
+    LoginController,
+    LogoutController,
+    RefreshTokenController,
+    ValidateAccessTokenController,
+    RegisterController
+  ],
   providers: [
     LoginHandler,
     GenerateTokenHandler,
     LogoutHandler,
     RefreshTokenHandler,
     ValidateTokenHandler,
+    RegisterHandler,
+    IdentityUserWriteService,
     {
       provide: 'IAuthRepository',
       useClass: AuthRepository

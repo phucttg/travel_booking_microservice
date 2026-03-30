@@ -1,0 +1,39 @@
+import 'reflect-metadata';
+import { Fixture, IntegrationTestFixture } from '@tests/shared/fixtures/integration-test.fixture';
+import { Register } from '@/auth/features/v1/register/register';
+import { PassengerType } from '@/user/enums/passenger-type.enum';
+import { Role, UserCreated } from 'building-blocks/contracts/identity.contract';
+
+describe('integration test for register', () => {
+  const integrationTestFixture = new IntegrationTestFixture();
+  let fixture: Fixture;
+
+  beforeAll(async () => {
+    fixture = await integrationTestFixture.initializeFixture();
+  });
+
+  afterAll(async () => {
+    await integrationTestFixture.cleanUp();
+  });
+
+  it('should register a new user with role USER and publish UserCreated', async () => {
+    const result = await fixture.commandBus.execute(
+      new Register({
+        email: 'register.integration@example.com',
+        password: 'User@12345',
+        name: 'Integration Register',
+        passportNumber: 'B1234567',
+        age: 19,
+        passengerType: PassengerType.FEMALE
+      })
+    );
+
+    const isPublished = await fixture.rabbitmqPublisher.isPublished(new UserCreated());
+    const user = await fixture.userRepository.findUserById(result.id);
+
+    expect(isPublished).toBe(true);
+    expect(user).not.toBeNull();
+    expect(user.role).toBe(Role.USER);
+    expect(user.isEmailVerified).toBe(false);
+  });
+});
