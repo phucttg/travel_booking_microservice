@@ -49,7 +49,7 @@ describe('ReserveSeatHandler', () => {
       })
     );
 
-    expect(seatRepository.reserveEconomySeat).toHaveBeenCalledWith(7);
+    expect(seatRepository.reserveEconomySeat).toHaveBeenCalledWith(7, undefined);
     expect(seatRepository.reserveSeat).not.toHaveBeenCalled();
     expect(result.seatNumber).toBe('3A');
     expect(result.seatClass).toBe(SeatClass.ECONOMY);
@@ -158,7 +158,7 @@ describe('ReserveSeatHandler', () => {
       })
     );
 
-    expect(seatRepository.reserveSeat).toHaveBeenCalledWith(7, '1A');
+    expect(seatRepository.reserveSeat).toHaveBeenCalledWith(7, '1A', undefined);
     expect(seatRepository.reserveEconomySeat).not.toHaveBeenCalled();
     expect(result.seatClass).toBe(SeatClass.BUSINESS);
     expect(result.price).toBe(2625000);

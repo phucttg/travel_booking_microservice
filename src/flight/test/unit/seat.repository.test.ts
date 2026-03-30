@@ -1,5 +1,6 @@
 import { SeatRepository } from '@/data/repositories/seatRepository';
 import { SeatClass } from '@/seat/enums/seat-class.enum';
+import { SeatState } from '@/seat/enums/seat-state.enum';
 
 describe('SeatRepository.reserveEconomySeat', () => {
   it('locks the lowest-numbered available economy seat', async () => {
@@ -29,8 +30,13 @@ describe('SeatRepository.reserveEconomySeat', () => {
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(query).toHaveBeenCalledWith(expect.stringContaining('AND "seatClass" = $2'), [
       7,
-      String(SeatClass.ECONOMY)
+      String(SeatClass.ECONOMY),
+      SeatState.AVAILABLE,
+      SeatState.HELD,
+      SeatState.BOOKED,
+      true
     ]);
+    expect(query.mock.calls[0][0]).toContain('AND ("seatState" = $3 OR ("seatState" = $4 AND "holdExpiresAt" <= CURRENT_TIMESTAMP))');
     expect(query.mock.calls[0][0]).toContain('ORDER BY "seatNumber" ASC');
     expect(seat).toMatchObject({
       id: 21,
@@ -60,7 +66,14 @@ describe('SeatRepository.hasAvailablePremiumSeats', () => {
 
     expect(createQueryBuilder).toHaveBeenCalledWith('seat');
     expect(where).toHaveBeenCalledWith('seat.flightId = :flightId', { flightId: 7 });
-    expect(andWhere).toHaveBeenNthCalledWith(1, 'seat.isReserved = false');
+    expect(andWhere).toHaveBeenNthCalledWith(
+      1,
+      '(seat.seatState = :availableState OR (seat.seatState = :heldState AND seat.holdExpiresAt <= CURRENT_TIMESTAMP))',
+      {
+        availableState: SeatState.AVAILABLE,
+        heldState: SeatState.HELD
+      }
+    );
     expect(andWhere).toHaveBeenNthCalledWith(2, 'seat.seatClass IN (:...premiumSeatClasses)', {
       premiumSeatClasses: [String(SeatClass.FIRST_CLASS), String(SeatClass.BUSINESS)]
     });
