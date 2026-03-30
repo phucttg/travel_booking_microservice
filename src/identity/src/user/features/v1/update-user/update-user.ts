@@ -24,6 +24,7 @@ import { UpdateUserRequestDto } from '@/user/dtos/update-user-request.dto';
 import { UserIdParamDto } from '@/user/dtos/user-id-param.dto';
 import { PassengerType } from '@/user/enums/passenger-type.enum';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { DataSource } from 'typeorm';
 
 export class UpdateUser {
   id: number;
@@ -76,6 +77,7 @@ export class UpdateUserController {
 export class UpdateUserHandler implements ICommandHandler<UpdateUser> {
   constructor(
     @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly dataSource: DataSource,
     private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
@@ -107,7 +109,9 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUser> {
       updatedAt: new Date()
     });
 
-    await this.userRepository.updateUser(updateUserEntity);
-    await this.identityUserEventPublisherService.publishUserUpdated(updateUserEntity);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(User).save(updateUserEntity);
+      await this.identityUserEventPublisherService.publishUserUpdated(updateUserEntity, manager);
+    });
   }
 }

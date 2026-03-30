@@ -7,6 +7,7 @@ import { PassengerType } from '@/user/enums/passenger-type.enum';
 import { UserDto } from '@/user/dtos/user.dto';
 import mapper from '@/user/mapping';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { DataSource } from 'typeorm';
 
 type CreateIdentityUserInput = {
   email: string;
@@ -29,6 +30,7 @@ type DuplicateDriverError = {
 export class IdentityUserWriteService {
   constructor(
     @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly dataSource: DataSource,
     private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
@@ -39,21 +41,28 @@ export class IdentityUserWriteService {
       throw new ConflictException('Email already taken');
     }
 
-    let userEntity: User;
-
     try {
-      userEntity = await this.userRepository.createUser(
-        new User({
-          email: input.email,
-          name: input.name,
-          password: await encryptPassword(input.password),
-          role: input.role,
-          passportNumber: input.passportNumber,
-          age: input.age,
-          passengerType: input.passengerType,
-          isEmailVerified: input.isEmailVerified ?? false
-        })
-      );
+      const encryptedPassword = await encryptPassword(input.password);
+      const userEntity = await this.dataSource.transaction(async (manager) => {
+        const createdUser = await manager.getRepository(User).save(
+          new User({
+            email: input.email,
+            name: input.name,
+            password: encryptedPassword,
+            role: input.role,
+            passportNumber: input.passportNumber,
+            age: input.age,
+            passengerType: input.passengerType,
+            isEmailVerified: input.isEmailVerified ?? false
+          })
+        );
+
+        await this.identityUserEventPublisherService.publishUserCreated(createdUser, manager);
+
+        return createdUser;
+      });
+
+      return mapper.map<User, UserDto>(userEntity, new UserDto());
     } catch (error) {
       if (this.isDuplicateEmailError(error)) {
         throw new ConflictException('Email already taken');
@@ -61,10 +70,6 @@ export class IdentityUserWriteService {
 
       throw error;
     }
-
-    await this.identityUserEventPublisherService.publishUserCreated(userEntity);
-
-    return mapper.map<User, UserDto>(userEntity, new UserDto());
   }
 
   private isDuplicateEmailError(error: unknown): boolean {

@@ -11,6 +11,7 @@ import { Role } from '@/user/enums/role.enum';
 import mapper from '@/user/mapping';
 import { UserIdQueryDto } from '@/user/dtos/user-id-query.dto';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { DataSource } from 'typeorm';
 
 export class DeleteUserById {
   id: number;
@@ -45,6 +46,7 @@ export class DeleteUserByIdController {
 export class DeleteUserByIdHandler implements ICommandHandler<DeleteUserById> {
   constructor(
     @Inject('IUserRepository') private readonly userRepository: IUserRepository,
+    private readonly dataSource: DataSource,
     private readonly identityUserEventPublisherService: IdentityUserEventPublisherService
   ) {}
 
@@ -55,8 +57,12 @@ export class DeleteUserByIdHandler implements ICommandHandler<DeleteUserById> {
       throw new NotFoundException('User not found');
     }
 
-    const deletedUser = await this.userRepository.removeUser(userEntity);
-    await this.identityUserEventPublisherService.publishUserDeleted(deletedUser);
+    const deletedUser = await this.dataSource.transaction(async (manager) => {
+      const removedUser = await manager.getRepository(User).remove(userEntity);
+      await this.identityUserEventPublisherService.publishUserDeleted(removedUser, manager);
+
+      return removedUser;
+    });
 
     return mapper.map<User, UserDto>(deletedUser, new UserDto());
   }

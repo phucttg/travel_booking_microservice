@@ -21,8 +21,10 @@ import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
 import { RolesGuard } from '@/common/auth/roles.guard';
 import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { OutboxMessage } from '@/user/entities/outbox-message.entity';
+import { IdentityOutboxDispatcherService } from '@/user/services/identity-outbox-dispatcher.service';
 @Module({
-  imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([User, Token])],
+  imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([User, Token, OutboxMessage])],
   controllers: [
     CreateUserController,
     DeleteUserByIdController,
@@ -39,6 +41,7 @@ import { IdentityUserEventPublisherService } from '@/user/services/identity-user
     GetUserByIdHandler,
     IdentityUserWriteService,
     IdentityUserEventPublisherService,
+    IdentityOutboxDispatcherService,
     RolesGuard,
     {
       provide: 'IUserRepository',
@@ -51,4 +54,8 @@ import { IdentityUserEventPublisherService } from '@/user/services/identity-user
   ],
   exports: []
 })
-export class UserModule {}
+export class UserModule {
+  constructor(private readonly identityOutboxDispatcherService: IdentityOutboxDispatcherService) {
+    void this.identityOutboxDispatcherService;
+  }
+}

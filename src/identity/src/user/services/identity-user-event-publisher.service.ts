@@ -1,33 +1,33 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { IRabbitmqPublisher } from 'building-blocks/rabbitmq/rabbitmq-publisher';
+import { Injectable } from '@nestjs/common';
+import { DataSource, EntityManager } from 'typeorm';
+import { prepareOutboxMessage } from 'building-blocks/rabbitmq/outbox-message';
 import { User } from '@/user/entities/user.entity';
 import {
   mapUserToUserCreatedEvent,
   mapUserToUserDeletedEvent,
   mapUserToUserUpdatedEvent
 } from '@/user/events/user-event.mapper';
+import { OutboxMessage } from '@/user/entities/outbox-message.entity';
 
 @Injectable()
 export class IdentityUserEventPublisherService {
-  constructor(
-    @Inject('IRabbitmqPublisher') private readonly rabbitmqPublisher: IRabbitmqPublisher
-  ) {}
+  constructor(private readonly dataSource: DataSource) {}
 
-  async publishUserCreated(user: User): Promise<void> {
-    await this.rabbitmqPublisher.publishMessage(mapUserToUserCreatedEvent(user), {
-      useEnvelope: true
-    });
+  async publishUserCreated(user: User, manager?: EntityManager): Promise<void> {
+    await this.enqueueEvent(mapUserToUserCreatedEvent(user), manager);
   }
 
-  async publishUserUpdated(user: User): Promise<void> {
-    await this.rabbitmqPublisher.publishMessage(mapUserToUserUpdatedEvent(user), {
-      useEnvelope: true
-    });
+  async publishUserUpdated(user: User, manager?: EntityManager): Promise<void> {
+    await this.enqueueEvent(mapUserToUserUpdatedEvent(user), manager);
   }
 
-  async publishUserDeleted(user: User): Promise<void> {
-    await this.rabbitmqPublisher.publishMessage(mapUserToUserDeletedEvent(user), {
-      useEnvelope: true
-    });
+  async publishUserDeleted(user: User, manager?: EntityManager): Promise<void> {
+    await this.enqueueEvent(mapUserToUserDeletedEvent(user), manager);
+  }
+
+  private async enqueueEvent(message: object, manager?: EntityManager): Promise<void> {
+    const outboxRepository = (manager ?? this.dataSource.manager).getRepository(OutboxMessage);
+
+    await outboxRepository.insert(prepareOutboxMessage(message, { useEnvelope: true }));
   }
 }
