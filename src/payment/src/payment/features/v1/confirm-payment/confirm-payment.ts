@@ -36,6 +36,7 @@ import { IdempotencyRecord } from '@/payment/entities/idempotency-record.entity'
 import { createRequestHash } from '@/payment/utils/request-hash';
 import { PaymentIntent } from '@/payment/entities/payment-intent.entity';
 import { OutboxMessage } from '@/payment/entities/outbox-message.entity';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -67,6 +68,7 @@ export class ConfirmPaymentController {
 
   @Patch('confirm/:id')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('payment.confirm_admin')
   @ApiResponse({ status: 200, description: 'OK' })
   public async confirmPayment(
     @Param('id') id: string,

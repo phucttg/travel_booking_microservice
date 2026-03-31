@@ -18,6 +18,7 @@ import { Role } from 'building-blocks/contracts/identity.contract';
 import { IPaymentRepository } from '@/payment/repositories/payment.repository';
 import { toPaymentDto } from '@/payment/utils/payment.mapper';
 import { PaymentIdQueryDto } from '@/payment/dtos/payment-id-query.dto';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -47,6 +48,7 @@ export class GetPaymentByIdController {
 
   @Get('get-by-id')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('payment.get_by_id')
   @ApiResponse({ status: 200, description: 'OK' })
   public async getPaymentById(@Query() query: PaymentIdQueryDto, @Req() request: JwtRequest): Promise<PaymentDto> {
     const currentUserId = Number(request.user?.userId);

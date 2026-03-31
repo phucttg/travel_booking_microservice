@@ -18,6 +18,7 @@ import { Role } from 'building-blocks/contracts/identity.contract';
 import { IPaymentRepository } from '@/payment/repositories/payment.repository';
 import { toPaymentDto } from '@/payment/utils/payment.mapper';
 import { PaymentBookingIdQueryDto } from '@/payment/dtos/payment-booking-id-query.dto';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -47,6 +48,7 @@ export class GetPaymentByBookingIdController {
 
   @Get('get-by-booking-id')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('read.authenticated.default')
   @ApiResponse({ status: 200, description: 'OK' })
   public async getPaymentByBookingId(
     @Query() query: PaymentBookingIdQueryDto,

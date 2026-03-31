@@ -13,6 +13,12 @@ import { registerHealthEndpoints } from 'building-blocks/health/register-health-
 async function bootstrap() {
   OpenTelemetryModule.start();
   const app = await NestFactory.create(AppModule);
+  if (configs.rateLimit.trustProxy) {
+    const httpAdapter = app.getHttpAdapter().getInstance();
+    if (typeof httpAdapter?.set === 'function') {
+      httpAdapter.set('trust proxy', true);
+    }
+  }
 
   const logger = app.get(OtelLogger);
   app.useLogger(logger);

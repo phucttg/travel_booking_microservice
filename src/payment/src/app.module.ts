@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { RouterModule } from '@nestjs/core';
+import { APP_INTERCEPTOR, RouterModule } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -9,6 +9,8 @@ import { OpenTelemetryModule } from 'building-blocks/openTelemetry/opentelemetry
 import configs from 'building-blocks/configs/configs';
 import { postgresOptions } from '@/data/data-source';
 import { PaymentModule } from '@/payment/payment.module';
+import { RateLimitInterceptor } from 'building-blocks/rate-limit/rate-limit.interceptor';
+import { RateLimitService } from 'building-blocks/rate-limit/rate-limit.service';
 
 @Module({
   imports: [
@@ -26,7 +28,14 @@ import { PaymentModule } from '@/payment/payment.module';
       }
     ])
   ],
-  providers: [JwtStrategy]
+  providers: [
+    JwtStrategy,
+    RateLimitService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RateLimitInterceptor
+    }
+  ]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

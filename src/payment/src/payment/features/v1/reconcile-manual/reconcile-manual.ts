@@ -29,6 +29,7 @@ import { PaymentAttempt } from '@/payment/entities/payment-attempt.entity';
 import { FakePaymentScenario } from '@/payment/enums/fake-payment-scenario.enum';
 import { PaymentIntent } from '@/payment/entities/payment-intent.entity';
 import { OutboxMessage } from '@/payment/entities/outbox-message.entity';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -61,6 +62,7 @@ export class ManualReconcilePaymentController {
 
   @Post('reconcile-manual')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('payment.reconcile_admin')
   @ApiResponse({ status: 200, description: 'OK' })
   public async reconcileManual(
     @Body() request: ManualReconcilePaymentRequestDto,

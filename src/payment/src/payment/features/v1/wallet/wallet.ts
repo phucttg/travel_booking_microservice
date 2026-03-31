@@ -47,6 +47,7 @@ import { FakePaymentScenario } from '@/payment/enums/fake-payment-scenario.enum'
 import { WalletTopupRequestsQueryDto } from '@/payment/dtos/wallet-topup-requests-query.dto';
 import { WalletTopupRequestStatus as WalletTopupRequestStatusEntity } from '@/payment/enums/wallet-topup-request-status.enum';
 import { OutboxMessage } from '@/payment/entities/outbox-message.entity';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -167,6 +168,7 @@ export class WalletController {
 
   @Get('me')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('read.authenticated.default')
   @ApiResponse({ status: 200, description: 'OK' })
   async getMyWallet(@Req() request: JwtRequest): Promise<WalletDto> {
     const currentUserId = Number(request.user?.userId);
@@ -179,6 +181,7 @@ export class WalletController {
 
   @Post('topup-requests')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('wallet.topup_create')
   @ApiResponse({ status: 201, description: 'CREATED' })
   async createTopupRequest(
     @Body() request: CreateWalletTopupRequestDto,
@@ -199,6 +202,7 @@ export class WalletController {
 
   @Get('topup-requests/my')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('read.authenticated.default')
   @ApiResponse({ status: 200, description: 'OK' })
   async getMyTopupRequests(@Req() request: JwtRequest): Promise<WalletTopupRequestDto[]> {
     const currentUserId = Number(request.user?.userId);
@@ -211,6 +215,7 @@ export class WalletController {
 
   @Get('topup-requests')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('read.authenticated.default')
   @ApiResponse({ status: 200, description: 'OK' })
   async getTopupRequests(
     @Query() query: WalletTopupRequestsQueryDto,
@@ -237,6 +242,7 @@ export class WalletController {
 
   @Patch('topup-requests/:id/approve')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('admin.write.default')
   @ApiResponse({ status: 200, description: 'OK' })
   async approveTopupRequest(@Param('id') id: string, @Req() request: JwtRequest): Promise<WalletTopupRequestDto> {
     const currentUserId = Number(request.user?.userId);
@@ -264,6 +270,7 @@ export class WalletController {
 
   @Patch('topup-requests/:id/reject')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('admin.write.default')
   @ApiResponse({ status: 200, description: 'OK' })
   async rejectTopupRequest(
     @Param('id') id: string,
@@ -296,6 +303,7 @@ export class WalletController {
 
   @Post('pay-booking')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('wallet.pay_booking')
   @ApiResponse({ status: 200, description: 'OK' })
   async payBooking(
     @Body() request: WalletPayBookingRequestDto,

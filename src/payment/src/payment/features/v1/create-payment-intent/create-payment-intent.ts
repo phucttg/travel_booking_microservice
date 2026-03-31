@@ -13,6 +13,7 @@ import { IPaymentRepository } from '@/payment/repositories/payment.repository';
 import { PaymentIntent } from '@/payment/entities/payment-intent.entity';
 import { toPaymentDto } from '@/payment/utils/payment.mapper';
 import { createPaymentCode } from '@/payment/utils/payment-code';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 export class CreatePaymentIntent {
   bookingId: number;
@@ -37,6 +38,7 @@ export class CreatePaymentIntentController {
 
   @Post('create-intent')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('payment.create_intent')
   @ApiResponse({ status: 201, description: 'CREATED' })
   public async createIntent(
     @Body() request: CreatePaymentIntentRequestDto,

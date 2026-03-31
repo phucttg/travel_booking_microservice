@@ -8,6 +8,7 @@ import { Role } from 'building-blocks/contracts/identity.contract';
 import { PaymentIdsRequestDto } from '@/payment/dtos/payment-ids-request.dto';
 import { IPaymentRepository } from '@/payment/repositories/payment.repository';
 import { toPaymentSummaryDto } from '@/payment/utils/payment.mapper';
+import { RateLimitPolicy } from 'building-blocks/rate-limit/rate-limit.decorator';
 
 type JwtRequest = Request & {
   user?: {
@@ -37,6 +38,7 @@ export class GetPaymentSummariesByIdsController {
 
   @Post('get-summaries-by-ids')
   @UseGuards(JwtGuard)
+  @RateLimitPolicy('read.authenticated.default')
   @ApiBody({ type: PaymentIdsRequestDto })
   @ApiResponse({ status: 200, description: 'OK' })
   public async getPaymentSummariesByIds(
