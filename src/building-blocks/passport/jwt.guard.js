@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const configs_1 = __importDefault(require("../configs/configs"));
 const context_1 = require("../context/context");
+const internal_auth_headers_1 = require("../internal-auth/internal-auth.headers");
 let JwtGuard = class JwtGuard extends (0, passport_1.AuthGuard)('jwt') {
     async canActivate(context) {
         const canActivate = await super.canActivate(context);
@@ -50,13 +51,23 @@ let JwtGuard = class JwtGuard extends (0, passport_1.AuthGuard)('jwt') {
         return extractedToken || undefined;
     }
     async validateAccessToken(token) {
+        const introspectionPath = '/api/v1/identity/validate-access-token';
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const internalHeaders = configs_1.default.internalAuth.secret
+            ? (0, internal_auth_headers_1.createInternalAuthHeaders)({
+                secret: configs_1.default.internalAuth.secret,
+                serviceName: (0, internal_auth_headers_1.resolveInternalServiceName)(configs_1.default.serviceName),
+                method: 'POST',
+                path: introspectionPath
+            })
+            : {};
         try {
-            const response = await fetch(`${configs_1.default.identity.serviceBaseUrl.replace(/\/+$/, '')}/api/v1/identity/validate-access-token`, {
+            const response = await fetch(`${configs_1.default.identity.serviceBaseUrl.replace(/\/+$/, '')}${introspectionPath}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...internalHeaders
                 },
                 body: JSON.stringify({ accessToken: token }),
                 signal: controller.signal

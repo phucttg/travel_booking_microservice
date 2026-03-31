@@ -35,6 +35,19 @@ declare const _default: {
     identity: {
         serviceBaseUrl: any;
     };
+    rateLimit: {
+        enabled: any;
+        mode: any;
+        redisUrl: any;
+        failOpen: any;
+        headerEnabled: any;
+        trustProxy: any;
+    };
+    internalAuth: {
+        secret: any;
+        maxClockSkewSeconds: any;
+        allowedServiceNames: string[];
+    };
     retry: {
         count: any;
         factor: any;

@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import configs from '../configs/configs';
 import { RequestContext } from '../context/context';
+import { createInternalAuthHeaders, resolveInternalServiceName } from '../internal-auth/internal-auth.headers';
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -58,14 +59,25 @@ export class JwtGuard extends AuthGuard('jwt') {
   }
 
   private async validateAccessToken(token: string): Promise<void> {
+    const introspectionPath = '/api/v1/identity/validate-access-token';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    const internalHeaders = configs.internalAuth.secret
+      ? createInternalAuthHeaders({
+          secret: configs.internalAuth.secret,
+          serviceName: resolveInternalServiceName(configs.serviceName),
+          method: 'POST',
+          path: introspectionPath
+        })
+      : {};
+
     try {
-      const response = await fetch(`${configs.identity.serviceBaseUrl.replace(/\/+$/, '')}/api/v1/identity/validate-access-token`, {
+      const response = await fetch(`${configs.identity.serviceBaseUrl.replace(/\/+$/, '')}${introspectionPath}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...internalHeaders
         },
         body: JSON.stringify({ accessToken: token }),
         signal: controller.signal

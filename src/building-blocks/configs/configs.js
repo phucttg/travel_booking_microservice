@@ -30,6 +30,35 @@ const envVarsSchema = joi_1.default.object()
         .uri({ scheme: ['http', 'https'] })
         .default('http://localhost:3333')
         .description('Identity service base URL for access-token introspection'),
+    RATE_LIMIT_ENABLED: joi_1.default.boolean().default(true).description('Enable app-level rate limiting'),
+    RATE_LIMIT_MODE: joi_1.default.string()
+        .valid('shadow', 'enforce')
+        .default('shadow')
+        .description('Rate limiting enforcement mode'),
+    RATE_LIMIT_REDIS_URL: joi_1.default.string()
+        .default('redis://localhost:6379')
+        .description('Redis URL for rate limiting counters'),
+    RATE_LIMIT_FAIL_OPEN: joi_1.default.boolean()
+        .default(true)
+        .description('Allow requests when limiter backend is degraded'),
+    RATE_LIMIT_HEADER_ENABLED: joi_1.default.boolean()
+        .default(true)
+        .description('Write rate limit headers to responses'),
+    RATE_LIMIT_TRUST_PROXY: joi_1.default.boolean()
+        .default(true)
+        .description('Enable trust proxy for correct client IP extraction'),
+    RATE_LIMIT_INTERNAL_ALLOWED_SERVICES: joi_1.default.string()
+        .default('identity,flight,booking,payment,passenger,frontend')
+        .description('Comma-separated internal caller names that can be trusted'),
+    RATE_LIMIT_INTERNAL_MAX_CLOCK_SKEW_SECONDS: joi_1.default.number()
+        .integer()
+        .min(1)
+        .default(60)
+        .description('Allowed internal-call timestamp clock skew in seconds'),
+    INTERNAL_SERVICE_AUTH_SECRET: joi_1.default.string()
+        .allow('')
+        .default('local-dev-internal-secret')
+        .description('Shared secret for signed service-to-service internal calls'),
     POSTGRES_HOST: joi_1.default.string().default('localhost').description('Postgres host'),
     POSTGRES_PORT: joi_1.default.number().default(5432).description('Postgres host'),
     POSTGRES_USERNAME: joi_1.default.string().default('postgres').description('Postgres username'),
@@ -96,6 +125,17 @@ const { value: envVars, error } = envVarsSchema
 if (error) {
     throw new Error(`Config validation error: ${error.message}`);
 }
+const nodeEnvironment = String(envVars.NODE_ENV || '').toLowerCase();
+const requiresStrongInternalSecret = envVars.RATE_LIMIT_ENABLED && ['production', 'staging'].includes(nodeEnvironment);
+if (requiresStrongInternalSecret &&
+    (!envVars.INTERNAL_SERVICE_AUTH_SECRET ||
+        envVars.INTERNAL_SERVICE_AUTH_SECRET === 'local-dev-internal-secret')) {
+    throw new Error('Config validation error: INTERNAL_SERVICE_AUTH_SECRET must be configured with a non-default value in production-like environments');
+}
+const internalAllowedServiceNames = String(envVars.RATE_LIMIT_INTERNAL_ALLOWED_SERVICES || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => Boolean(value));
 exports.default = {
     env: envVars.NODE_ENV,
     serviceName: envVars.SERVICE_NAME,
@@ -132,6 +172,19 @@ exports.default = {
     },
     identity: {
         serviceBaseUrl: envVars.IDENTITY_SERVICE_BASE_URL
+    },
+    rateLimit: {
+        enabled: envVars.RATE_LIMIT_ENABLED,
+        mode: envVars.RATE_LIMIT_MODE,
+        redisUrl: envVars.RATE_LIMIT_REDIS_URL,
+        failOpen: envVars.RATE_LIMIT_FAIL_OPEN,
+        headerEnabled: envVars.RATE_LIMIT_HEADER_ENABLED,
+        trustProxy: envVars.RATE_LIMIT_TRUST_PROXY
+    },
+    internalAuth: {
+        secret: envVars.INTERNAL_SERVICE_AUTH_SECRET,
+        maxClockSkewSeconds: envVars.RATE_LIMIT_INTERNAL_MAX_CLOCK_SKEW_SECONDS,
+        allowedServiceNames: internalAllowedServiceNames
     },
     retry: {
         count: envVars.RETRY_COUNT,
