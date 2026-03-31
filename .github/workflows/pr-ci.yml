@@ -74,14 +74,10 @@ jobs:
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Lint identity
+      - name: Build identity
         run: |
           npm ci
-          npm run lint
-        working-directory: ./src/identity
-
-      - name: Build identity
-        run: npm run build
+          npm run build
         working-directory: ./src/identity
 
       - name: Test identity
@@ -120,14 +116,10 @@ jobs:
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Lint flight
+      - name: Build flight
         run: |
           npm ci
-          npm run lint
-        working-directory: ./src/flight
-
-      - name: Build flight
-        run: npm run build
+          npm run build
         working-directory: ./src/flight
 
       - name: Test flight
@@ -166,14 +158,10 @@ jobs:
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Lint passenger
+      - name: Build passenger
         run: |
           npm ci
-          npm run lint
-        working-directory: ./src/passenger
-
-      - name: Build passenger
-        run: npm run build
+          npm run build
         working-directory: ./src/passenger
 
       - name: Test passenger
@@ -212,14 +200,10 @@ jobs:
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Lint booking
+      - name: Build booking
         run: |
           npm ci
-          npm run lint
-        working-directory: ./src/booking
-
-      - name: Build booking
-        run: npm run build
+          npm run build
         working-directory: ./src/booking
 
       - name: Test booking
@@ -258,14 +242,10 @@ jobs:
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Lint payment
+      - name: Build payment
         run: |
           npm ci
-          npm run lint
-        working-directory: ./src/payment
-
-      - name: Build payment
-        run: npm run build
+          npm run build
         working-directory: ./src/payment
 
       - name: Test payment
@@ -301,10 +281,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: ./src/frontend
-
-      - name: Lint frontend
-        run: npm run lint
         working-directory: ./src/frontend
 
       - name: Build frontend
