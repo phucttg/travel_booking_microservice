@@ -85,14 +85,26 @@ export const useGetBookings = (params: PaginationParams) =>
     }
   });
 
-export const useGetBookingById = (id: number) =>
+type UseGetBookingByIdOptions = {
+  enabled?: boolean;
+  refetchInterval?: number | false | ((query: any) => number | false | undefined);
+  refetchIntervalInBackground?: boolean;
+  retry?: boolean | number;
+  refetchOnWindowFocus?: boolean;
+};
+
+export const useGetBookingById = (id: number, options?: UseGetBookingByIdOptions) =>
   useQuery({
     queryKey: bookingKeys.detail(id),
     queryFn: async () => {
       const response = await bookingApi.getById(id);
       return response.data;
     },
-    enabled: id > 0
+    enabled: (options?.enabled ?? true) && id > 0,
+    refetchInterval: options?.refetchInterval,
+    refetchIntervalInBackground: options?.refetchIntervalInBackground,
+    retry: options?.retry,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus
   });
 
 export const useCreateBooking = () => {

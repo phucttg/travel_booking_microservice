@@ -12,6 +12,7 @@ import {
   Empty,
   Grid,
   Input,
+  message,
   Pagination,
   Progress,
   Row,
@@ -21,9 +22,8 @@ import {
   Typography
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { bookingApi } from '@api/booking.api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useBeforeUnload, useNavigate, useSearchParams } from 'react-router-dom';
 import { BoardingPassCard } from '@components/booking/BoardingPassCard';
 import { BookingSummary } from '@components/booking/BookingSummary';
 import { FlightCard } from '@components/booking/FlightCard';
@@ -71,6 +71,7 @@ const { Text } = Typography;
 
 type BookingStep = 0 | 1 | 2 | 3 | 4;
 type SeatViewMode = 'map' | 'list';
+type PostPaymentSyncState = 'idle' | 'syncing' | 'timed_out';
 type SelectedSeatSummary = Pick<SeatDto, 'seatNumber' | 'seatClass' | 'price' | 'currency'> &
   Partial<Pick<SeatDto, 'seatType'>>;
 type InlineAlert = {
@@ -90,16 +91,40 @@ const createIdempotencyKey = () =>
 const PREMIUM_SEAT_SELECTION_REQUIRED_CODE = 'PREMIUM_SEAT_SELECTION_REQUIRED';
 const PREMIUM_SEAT_SELECTION_REQUIRED_MESSAGE =
   'Economy seats are sold out. Please select a premium seat to continue.';
+const ACTIVE_BOOKING_EXISTS_CODE = 'ACTIVE_BOOKING_EXISTS';
+const BOOKING_SYNC_INTERVAL_MS = 1000;
+const BOOKING_SYNC_TIMEOUT_MS = 45000;
 
-const getCreateBookingBusinessCode = (appError: AppError): string => {
-  const rawResponseData =
+const parseStatusFromMeta = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const getCreateBookingResponseData = (appError: AppError): Record<string, unknown> | null => {
+  if (
     typeof appError.raw === 'object' &&
     appError.raw !== null &&
     'response' in appError.raw &&
     typeof (appError.raw as { response?: { data?: unknown } }).response?.data === 'object' &&
     (appError.raw as { response?: { data?: unknown } }).response?.data !== null
-      ? ((appError.raw as { response?: { data?: Record<string, unknown> } }).response?.data as Record<string, unknown>)
-      : null;
+  ) {
+    return (appError.raw as { response?: { data?: Record<string, unknown> } }).response?.data as Record<string, unknown>;
+  }
+
+  return null;
+};
+
+const getCreateBookingMetaValue = (appError: AppError, key: string): unknown => {
+  const rawResponseData = getCreateBookingResponseData(appError);
+  if (rawResponseData && key in rawResponseData) {
+    return rawResponseData[key];
+  }
+
+  return appError.meta?.[key];
+};
+
+const getCreateBookingBusinessCode = (appError: AppError): string => {
+  const rawResponseData = getCreateBookingResponseData(appError);
 
   if (typeof rawResponseData?.code === 'string' && rawResponseData.code) {
     return rawResponseData.code;
@@ -113,14 +138,7 @@ const getCreateBookingBusinessCode = (appError: AppError): string => {
 };
 
 const getCreateBookingBusinessMessage = (appError: AppError): string => {
-  const rawResponseData =
-    typeof appError.raw === 'object' &&
-    appError.raw !== null &&
-    'response' in appError.raw &&
-    typeof (appError.raw as { response?: { data?: unknown } }).response?.data === 'object' &&
-    (appError.raw as { response?: { data?: unknown } }).response?.data !== null
-      ? ((appError.raw as { response?: { data?: Record<string, unknown> } }).response?.data as Record<string, unknown>)
-      : null;
+  const rawResponseData = getCreateBookingResponseData(appError);
 
   if (typeof rawResponseData?.title === 'string' && rawResponseData.title) {
     return rawResponseData.title;
@@ -163,8 +181,8 @@ export const CreateBookingPage = () => {
   const [resumeWarning, setResumeWarning] = useState<InlineAlert | null>(null);
   const [duplicateBookingId, setDuplicateBookingId] = useState<number | null>(null);
   const [countdownNow, setCountdownNow] = useState<number>(Date.now());
-  const [isSyncingConfirmedBooking, setIsSyncingConfirmedBooking] = useState(false);
-  const [syncedPaymentId, setSyncedPaymentId] = useState<number | null>(null);
+  const [postPaymentSyncState, setPostPaymentSyncState] = useState<PostPaymentSyncState>('idle');
+  const [syncStartedAt, setSyncStartedAt] = useState<number | null>(null);
   const [resumeHandledBookingId, setResumeHandledBookingId] = useState<number | null>(null);
 
   const { getUserIdFromToken } = useAuthStore();
@@ -212,6 +230,37 @@ export const CreateBookingPage = () => {
       return step === 3 && paymentStatus === PaymentStatus.PENDING ? 5000 : false;
     }
   });
+  const currentPayment = paymentQuery.data || checkout?.payment || null;
+  const isPaymentStep = step === 3;
+  const isPaymentSucceeded = currentPayment?.paymentStatus === PaymentStatus.SUCCEEDED;
+  const bookingSyncId = checkout?.booking.id || 0;
+  const bookingSyncQuery = useGetBookingById(bookingSyncId, {
+    enabled:
+      isPaymentStep &&
+      bookingSyncId > 0 &&
+      isPaymentSucceeded &&
+      postPaymentSyncState !== 'timed_out' &&
+      checkout?.booking.bookingStatus !== BookingStatus.CONFIRMED,
+    refetchInterval: (query) => {
+      if (postPaymentSyncState !== 'syncing') {
+        return false;
+      }
+
+      const bookingStatus = query.state.data?.bookingStatus;
+      return bookingStatus === BookingStatus.CONFIRMED ? false : BOOKING_SYNC_INTERVAL_MS;
+    },
+    refetchIntervalInBackground: true,
+    retry: false,
+    refetchOnWindowFocus: false
+  });
+  const latestBookingSnapshot = bookingSyncQuery.data || checkout?.booking || null;
+  const isAwaitingBookingConfirm =
+    isPaymentStep &&
+    Boolean(checkout?.booking.id) &&
+    isPaymentSucceeded &&
+    latestBookingSnapshot?.bookingStatus !== BookingStatus.CONFIRMED;
+  const isHardLocked = postPaymentSyncState === 'syncing';
+  const isTimedOut = postPaymentSyncState === 'timed_out';
 
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const passengerAppError = passengerQuery.error ? normalizeProblemError(passengerQuery.error) : null;
@@ -253,6 +302,13 @@ export const CreateBookingPage = () => {
     }
 
     if (targetBooking.bookingStatus !== BookingStatus.PENDING_PAYMENT) {
+      if (targetBooking.bookingStatus === BookingStatus.CONFIRMED) {
+        message.info(`Booking #${targetBooking.id} đã được xác nhận. Đang chuyển sang trang chi tiết.`);
+        setResumeHandledBookingId(queryBookingId);
+        navigate(`/bookings/${targetBooking.id}`);
+        return;
+      }
+
       setResumeWarning({
         type: 'warning',
         message: `Booking #${targetBooking.id} không ở trạng thái chờ thanh toán`,
@@ -301,6 +357,9 @@ export const CreateBookingPage = () => {
       booking: targetBooking,
       payment: targetPayment
     });
+    setCreatedBooking(null);
+    setPostPaymentSyncState('idle');
+    setSyncStartedAt(null);
     setSelectedFlightId(targetBooking.flightId);
     setSelectedSeatNumber(targetBooking.seatNumber || null);
     setStep(3);
@@ -314,6 +373,7 @@ export const CreateBookingPage = () => {
   }, [
     bookingDeepLinkQuery.data,
     bookingDeepLinkQuery.isLoading,
+    navigate,
     paymentQuery.data,
     paymentQuery.isLoading,
     queryBookingId,
@@ -357,7 +417,6 @@ export const CreateBookingPage = () => {
     };
   }, [checkout, selectedSeat]);
   const selectedFlightIsBookable = isFlightBookable(selectedFlight);
-  const currentPayment = paymentQuery.data || checkout?.payment || null;
   const isWalletLoading = shouldFetchWallet && (walletQuery.isLoading || (walletQuery.isFetching && !walletQuery.data));
 
   const seatGrid = useMemo(() => buildSeatGrid(seats), [seats]);
@@ -463,8 +522,8 @@ export const CreateBookingPage = () => {
 
       setCheckout(response);
       setCreatedBooking(null);
-      setIsSyncingConfirmedBooking(false);
-      setSyncedPaymentId(null);
+      setPostPaymentSyncState('idle');
+      setSyncStartedAt(null);
       setStep(3);
       setInlineAlert({
         type: 'info',
@@ -473,9 +532,14 @@ export const CreateBookingPage = () => {
       });
     } catch (error) {
       const appError = normalizeProblemError(error);
-      const existingBookingId = Number(appError.meta?.existingBookingId || 0);
+      const existingBookingId = Number(getCreateBookingMetaValue(appError, 'existingBookingId') || 0);
+      const existingBookingStatus = parseStatusFromMeta(getCreateBookingMetaValue(appError, 'existingBookingStatus'));
+      const existingPaymentStatus = parseStatusFromMeta(getCreateBookingMetaValue(appError, 'existingPaymentStatus'));
       const businessCode = getCreateBookingBusinessCode(appError);
       const businessMessage = getCreateBookingBusinessMessage(appError);
+      const hasExistingBookingMetadata = existingBookingId > 0;
+      const isActiveBookingConflict =
+        businessCode === ACTIVE_BOOKING_EXISTS_CODE || (appError.status === 409 && hasExistingBookingMetadata);
       const isImplicitPremiumSelectionConflict =
         !selectedSeatNumber && appError.status === 409 && existingBookingId <= 0;
 
@@ -493,68 +557,137 @@ export const CreateBookingPage = () => {
         return;
       }
 
+      if (isActiveBookingConflict && hasExistingBookingMetadata) {
+        const shouldOpenConfirmedBooking =
+          existingBookingStatus === BookingStatus.CONFIRMED || existingPaymentStatus === PaymentStatus.SUCCEEDED;
+
+        if (shouldOpenConfirmedBooking) {
+          message.info(`Booking #${existingBookingId} đã được xác nhận. Đang chuyển sang trang chi tiết.`);
+          navigate(`/bookings/${existingBookingId}`);
+          return;
+        }
+
+        const shouldResumePendingBooking =
+          existingBookingStatus === BookingStatus.PENDING_PAYMENT ||
+          existingPaymentStatus === PaymentStatus.PENDING ||
+          existingPaymentStatus === PaymentStatus.PROCESSING;
+
+        if (shouldResumePendingBooking) {
+          message.info(`Đang mở lại phiên thanh toán của booking #${existingBookingId}.`);
+          navigate(`/bookings/create?bookingId=${existingBookingId}`);
+          return;
+        }
+      }
+
       if (existingBookingId > 0) {
         setDuplicateBookingId(existingBookingId);
       }
     }
   };
 
-  const waitForConfirmedBooking = async (bookingId: number): Promise<BookingDto | null> => {
-    let latestBooking: BookingDto | null = null;
-
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const response = await bookingApi.getById(bookingId);
-      latestBooking = response.data;
-
-      if (latestBooking.bookingStatus === BookingStatus.CONFIRMED) {
-        return latestBooking;
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
-    }
-
-    return latestBooking;
-  };
+  const handleSyncTimeout = useCallback(() => {
+    setPostPaymentSyncState((previousState) => (previousState === 'syncing' ? 'timed_out' : previousState));
+    setSyncStartedAt(null);
+    setInlineAlert({
+      type: 'warning',
+      message: 'Xác nhận booking đang chậm',
+      description: 'Thanh toán đã thành công. Vui lòng vào chi tiết booking để theo dõi trạng thái mới nhất.'
+    });
+  }, []);
 
   useEffect(() => {
-    if (step !== 3 || !checkout || !currentPayment) {
+    if (!isAwaitingBookingConfirm || postPaymentSyncState !== 'idle') {
       return;
     }
 
-    if (currentPayment.paymentStatus !== PaymentStatus.SUCCEEDED || isSyncingConfirmedBooking) {
-      return;
-    }
-
-    if (syncedPaymentId === currentPayment.id) {
-      return;
-    }
-
-    setIsSyncingConfirmedBooking(true);
-    setSyncedPaymentId(currentPayment.id);
+    setPostPaymentSyncState('syncing');
+    setSyncStartedAt(Date.now());
     setInlineAlert({
       type: 'info',
-      message: 'Đã nhận thanh toán, đang đồng bộ trạng thái booking',
-      description: 'Hệ thống đang chờ sự kiện xác nhận từ payment service.'
+      message: 'Đã thanh toán, đang xác nhận booking',
+      description: 'Hệ thống đang đồng bộ trạng thái xác nhận từ payment service. Vui lòng không rời trang.'
     });
+  }, [isAwaitingBookingConfirm, postPaymentSyncState]);
 
-    void (async () => {
-      const syncedBooking = await waitForConfirmedBooking(checkout.booking.id);
+  useEffect(() => {
+    if (
+      !isPaymentStep ||
+      !checkout ||
+      !bookingSyncQuery.data ||
+      bookingSyncQuery.data.bookingStatus !== BookingStatus.CONFIRMED
+    ) {
+      return;
+    }
 
-      if (syncedBooking?.bookingStatus === BookingStatus.CONFIRMED) {
-        setCreatedBooking(syncedBooking);
-        setStep(4);
-        setIsSyncingConfirmedBooking(false);
+    setCheckout((previousCheckout) =>
+      previousCheckout
+        ? {
+            ...previousCheckout,
+            booking: bookingSyncQuery.data
+          }
+        : previousCheckout
+    );
+    setCreatedBooking(bookingSyncQuery.data);
+    setPostPaymentSyncState('idle');
+    setSyncStartedAt(null);
+    setInlineAlert(null);
+    setStep(4);
+  }, [bookingSyncQuery.data, checkout, isPaymentStep]);
+
+  useEffect(() => {
+    if (postPaymentSyncState !== 'syncing' || syncStartedAt === null) {
+      return;
+    }
+
+    const remainingMs = BOOKING_SYNC_TIMEOUT_MS - (Date.now() - syncStartedAt);
+    if (remainingMs <= 0) {
+      handleSyncTimeout();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      handleSyncTimeout();
+    }, remainingMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [handleSyncTimeout, postPaymentSyncState, syncStartedAt]);
+
+  const handleBeforeUnload = useCallback(
+    (event: BeforeUnloadEvent) => {
+      if (!isHardLocked) {
         return;
       }
 
+      event.preventDefault();
+      event.returnValue = '';
+    },
+    [isHardLocked]
+  );
+  useBeforeUnload(handleBeforeUnload);
+
+  useEffect(() => {
+    if (!isHardLocked) {
+      return;
+    }
+
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
       setInlineAlert({
         type: 'info',
-        message: 'Thanh toán đã thành công, đang chờ booking xác nhận',
-        description: 'Sự kiện xác nhận đang được đồng bộ. Bạn có thể thử kiểm tra lại ngay.'
+        message: 'Đang đồng bộ booking, vui lòng chờ',
+        description: 'Hệ thống đang xác nhận booking vừa thanh toán.'
       });
-      setIsSyncingConfirmedBooking(false);
-    })();
-  }, [checkout, currentPayment, isSyncingConfirmedBooking, step, syncedPaymentId]);
+    };
+
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isHardLocked]);
 
   const renderFlightSelection = () => (
     <SectionCard title="Chọn chuyến bay" subtitle="Step 1 · Select a route with the right schedule and fare">
@@ -864,6 +997,8 @@ export const CreateBookingPage = () => {
     const walletCurrency = walletQuery.data?.currency || payment.currency;
     const isWalletSufficient =
       typeof walletBalance === 'number' ? walletBalance >= Number(payment.amount || 0) : null;
+    const shouldFreezePaymentActions = isPaymentSucceeded;
+    const showTimeoutSafeExit = shouldFreezePaymentActions && isTimedOut;
 
     return (
       <SectionCard title="Thanh toán" subtitle="Step 4 · Confirm the locked amount before the hold expires">
@@ -920,7 +1055,7 @@ export const CreateBookingPage = () => {
                   subtle
                 />
               </Space>
-              {walletQuery.isError && typeof walletBalance !== 'number' && (
+              {!shouldFreezePaymentActions && walletQuery.isError && typeof walletBalance !== 'number' && (
                 <Alert
                   type="warning"
                   showIcon
@@ -928,7 +1063,7 @@ export const CreateBookingPage = () => {
                   description="Vui lòng refresh ví để kiểm tra lại số dư trước khi thanh toán."
                 />
               )}
-              {isWalletSufficient === false && (
+              {!shouldFreezePaymentActions && isWalletSufficient === false && (
                 <Alert
                   type="warning"
                   showIcon
@@ -939,52 +1074,60 @@ export const CreateBookingPage = () => {
             </Space>
           </Card>
 
-          <Space wrap>
-            <Button
-              onClick={() => {
-                if (isResumedCheckout) {
-                  navigate(`/bookings/${checkout.booking.id}`);
-                  return;
-                }
-
-                setStep(2);
-              }}
-            >
-              {isResumedCheckout ? 'Về chi tiết booking' : 'Quay lại review'}
-            </Button>
-            <Button onClick={() => walletQuery.refetch()} loading={walletQuery.isFetching}>
-              Refresh ví
-            </Button>
-            {isWalletSufficient === false ? (
-              <Button type="primary" onClick={() => navigate('/wallet')}>
-                Nạp ví
+          {showTimeoutSafeExit ? (
+            <Space wrap>
+              <Button type="primary" onClick={() => navigate(`/bookings/${checkout.booking.id}`)}>
+                Về chi tiết booking
               </Button>
-            ) : (
+            </Space>
+          ) : shouldFreezePaymentActions ? null : (
+            <Space wrap>
               <Button
-                type="primary"
-                loading={payBookingWithWalletMutation.isPending}
-                disabled={paymentExpired || !checkout.payment.id || isWalletSufficient !== true}
-                onClick={async () => {
-                  if (!payment.id) {
+                onClick={() => {
+                  if (isResumedCheckout) {
+                    navigate(`/bookings/${checkout.booking.id}`);
                     return;
                   }
 
-                  await payBookingWithWalletMutation.mutateAsync({ paymentId: payment.id });
-                  setInlineAlert({
-                    type: 'info',
-                    message: 'Thanh toán ví thành công, đang đồng bộ booking',
-                    description: 'Hệ thống đang cập nhật trạng thái xác nhận booking.'
-                  });
-                  await paymentQuery.refetch();
+                  setStep(2);
                 }}
               >
-                Thanh toán bằng ví
+                {isResumedCheckout ? 'Về chi tiết booking' : 'Quay lại review'}
               </Button>
-            )}
-            <Button onClick={() => paymentQuery.refetch()} disabled={!checkout.payment.id}>
-              Kiểm tra lại payment
-            </Button>
-          </Space>
+              <Button onClick={() => walletQuery.refetch()} loading={walletQuery.isFetching}>
+                Refresh ví
+              </Button>
+              {isWalletSufficient === false ? (
+                <Button type="primary" onClick={() => navigate('/wallet')}>
+                  Nạp ví
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  loading={payBookingWithWalletMutation.isPending}
+                  disabled={paymentExpired || !checkout.payment.id || isWalletSufficient !== true}
+                  onClick={async () => {
+                    if (!payment.id) {
+                      return;
+                    }
+
+                    await payBookingWithWalletMutation.mutateAsync({ paymentId: payment.id });
+                    setInlineAlert({
+                      type: 'info',
+                      message: 'Thanh toán ví thành công, đang đồng bộ booking',
+                      description: 'Hệ thống đang cập nhật trạng thái xác nhận booking.'
+                    });
+                    await paymentQuery.refetch();
+                  }}
+                >
+                  Thanh toán bằng ví
+                </Button>
+              )}
+              <Button onClick={() => paymentQuery.refetch()} disabled={!checkout.payment.id}>
+                Kiểm tra lại payment
+              </Button>
+            </Space>
+          )}
         </Space>
       </SectionCard>
     );
@@ -1045,8 +1188,8 @@ export const CreateBookingPage = () => {
                 setSelectedSeatNumber(null);
                 setDescription('');
                 setInlineAlert(null);
-                setIsSyncingConfirmedBooking(false);
-                setSyncedPaymentId(null);
+                setPostPaymentSyncState('idle');
+                setSyncStartedAt(null);
               }}
             >
               Đặt thêm vé
@@ -1140,6 +1283,26 @@ export const CreateBookingPage = () => {
             </div>
           </Col>
         </Row>
+      )}
+
+      {isHardLocked && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1200,
+            background: 'rgba(15, 23, 42, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <Card className="app-surface" style={{ borderRadius: 16, maxWidth: 420 }}>
+            <Text strong>Đang đồng bộ booking, vui lòng chờ</Text>
+          </Card>
+        </div>
       )}
     </>
   );

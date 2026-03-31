@@ -40,6 +40,10 @@ const isAppError = (error: unknown): error is AppError => {
     return false;
   }
 
+  if ('isAxiosError' in error && Boolean((error as { isAxiosError?: unknown }).isAxiosError)) {
+    return false;
+  }
+
   return (
     'status' in error &&
     'code' in error &&

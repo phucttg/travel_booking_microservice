@@ -12,8 +12,9 @@ import { useGetAircrafts } from '@hooks/useAircrafts';
 import { useGetAirports } from '@hooks/useAirports';
 import { useCancelBooking, useGetBookingById } from '@hooks/useBookings';
 import { useGetFlightById } from '@hooks/useFlights';
+import { useGetPaymentById } from '@hooks/usePayments';
 import { AirportDto } from '@/types/airport.types';
-import { BookingStatus } from '@/types/enums';
+import { BookingStatus, PaymentStatus } from '@/types/enums';
 import {
   bookingStatusLabels,
   formatCurrency,
@@ -43,6 +44,9 @@ export const BookingDetailPage = () => {
 
   const booking = bookingQuery.data;
   const flightQuery = useGetFlightById(booking?.flightId || 0);
+  const paymentByIdQuery = useGetPaymentById(booking?.paymentId || 0, {
+    enabled: booking?.bookingStatus === BookingStatus.PENDING_PAYMENT && Boolean(booking?.paymentId)
+  });
 
   const airportMap = useMemo(
     () => Object.fromEntries((airportsQuery.data || []).map((airport) => [airport.id, airport])) as Record<number, AirportDto>,
@@ -64,7 +68,11 @@ export const BookingDetailPage = () => {
     : null;
   const bookingRelatedFlight = flightQuery.data;
   const cancellable = Boolean(bookingRelatedFlight) && canCancelBooking(booking, bookingRelatedFlight);
-  const canTopUpPayment = Boolean(booking?.paymentId) && booking?.bookingStatus === BookingStatus.PENDING_PAYMENT;
+  const effectivePaymentStatus = paymentByIdQuery.data?.paymentStatus ?? booking?.paymentSummary?.paymentStatus;
+  const canTopUpPayment =
+    Boolean(booking?.paymentId) &&
+    booking?.bookingStatus === BookingStatus.PENDING_PAYMENT &&
+    effectivePaymentStatus === PaymentStatus.PENDING;
 
   if ((bookingQuery.isLoading || airportsQuery.isLoading || aircraftsQuery.isLoading) && !booking) {
     return <PageSkeleton variant="detail" />;
