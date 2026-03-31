@@ -1,5 +1,8 @@
 declare const _default: {
     env: any;
+    appEnv: any;
+    isProductionLike: boolean;
+    serviceId: string;
     serviceName: any;
     port: any;
     rabbitmq: {
@@ -25,6 +28,9 @@ declare const _default: {
         migrationsRun: any;
         ssl: any;
         sslRejectUnauthorized: any;
+    };
+    bootstrap: {
+        seedEnabled: any;
     };
     jwt: {
         secret: any;
@@ -58,6 +64,10 @@ declare const _default: {
         pollIntervalMs: any;
         maxAttempts: any;
         retryBaseMs: any;
+    };
+    health: {
+        authDependencyPollIntervalMs: any;
+        authDependencyTimeoutMs: any;
     };
     opentelemetry: {
         serviceName: any;

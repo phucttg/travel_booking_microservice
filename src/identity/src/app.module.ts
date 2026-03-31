@@ -55,6 +55,10 @@ export class AppModule implements OnApplicationBootstrap, NestModule {
   }
 
   async onApplicationBootstrap(): Promise<void> {
+    if (!configs.bootstrap.seedEnabled) {
+      return;
+    }
+
     await this.dataSeeder.seedAsync();
   }
 }

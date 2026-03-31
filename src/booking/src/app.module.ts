@@ -8,6 +8,7 @@ import { BookingModule } from '@/booking/booking.module';
 import configs from 'building-blocks/configs/configs';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { RequestContextMiddleware } from 'building-blocks/context/context';
+import { IdentityAuthDependencyHealthService } from 'building-blocks/health/identity-auth-dependency-health.service';
 import { OpenTelemetryModule } from 'building-blocks/openTelemetry/opentelemetry.module';
 import { RateLimitInterceptor } from 'building-blocks/rate-limit/rate-limit.interceptor';
 import { RateLimitService } from 'building-blocks/rate-limit/rate-limit.service';
@@ -31,6 +32,7 @@ import { RateLimitService } from 'building-blocks/rate-limit/rate-limit.service'
   providers: [
     JwtStrategy,
     RateLimitService,
+    IdentityAuthDependencyHealthService,
     {
       provide: APP_INTERCEPTOR,
       useClass: RateLimitInterceptor

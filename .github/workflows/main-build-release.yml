@@ -1,0 +1,157 @@
+name: Main Build Release
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_shared: ${{ steps.filter.outputs.backend_shared }}
+      identity: ${{ steps.filter.outputs.identity }}
+      flight: ${{ steps.filter.outputs.flight }}
+      passenger: ${{ steps.filter.outputs.passenger }}
+      booking: ${{ steps.filter.outputs.booking }}
+      payment: ${{ steps.filter.outputs.payment }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend_shared:
+              - 'src/building-blocks/**'
+              - '.dockerignore'
+            identity:
+              - 'src/identity/**'
+            flight:
+              - 'src/flight/**'
+            passenger:
+              - 'src/passenger/**'
+            booking:
+              - 'src/booking/**'
+            payment:
+              - 'src/payment/**'
+            frontend:
+              - 'src/frontend/**'
+
+  build-release:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine changed services
+        id: changed-services
+        run: |
+          services=()
+
+          if [[ "${{ needs.changes.outputs.identity }}" == "true" || "${{ needs.changes.outputs.backend_shared }}" == "true" ]]; then
+            services+=("identity")
+          fi
+          if [[ "${{ needs.changes.outputs.flight }}" == "true" || "${{ needs.changes.outputs.backend_shared }}" == "true" ]]; then
+            services+=("flight")
+          fi
+          if [[ "${{ needs.changes.outputs.passenger }}" == "true" || "${{ needs.changes.outputs.backend_shared }}" == "true" ]]; then
+            services+=("passenger")
+          fi
+          if [[ "${{ needs.changes.outputs.booking }}" == "true" || "${{ needs.changes.outputs.backend_shared }}" == "true" ]]; then
+            services+=("booking")
+          fi
+          if [[ "${{ needs.changes.outputs.payment }}" == "true" || "${{ needs.changes.outputs.backend_shared }}" == "true" ]]; then
+            services+=("payment")
+          fi
+          if [[ "${{ needs.changes.outputs.frontend }}" == "true" ]]; then
+            services+=("frontend")
+          fi
+
+          services_csv="$(IFS=,; echo "${services[*]}")"
+          echo "services_csv=$services_csv" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push changed images
+        run: |
+          echo '{}' > image-digests.json
+
+          if [[ -z "${{ steps.changed-services.outputs.services_csv }}" ]]; then
+            exit 0
+          fi
+
+          IFS=',' read -r -a services <<< "${{ steps.changed-services.outputs.services_csv }}"
+          registry="${{ steps.login-ecr.outputs.registry }}"
+
+          docker buildx create --use --name release-builder
+
+          for service in "${services[@]}"; do
+            metadata_file="$(mktemp)"
+
+            if [[ "$service" == "frontend" ]]; then
+              dockerfile="src/frontend/Dockerfile"
+              context_dir="src/frontend"
+            else
+              dockerfile="src/${service}/Dockerfile"
+              context_dir="."
+            fi
+
+            image_repo="${registry}/${service}"
+
+            docker buildx build \
+              --platform linux/amd64 \
+              --push \
+              --metadata-file "$metadata_file" \
+              -t "${image_repo}:${GITHUB_SHA}" \
+              -t "${image_repo}:git-${GITHUB_SHA}" \
+              -f "$dockerfile" \
+              "$context_dir"
+
+            digest="$(jq -r '."containerimage.digest"' "$metadata_file")"
+            image_ref="${image_repo}@${digest}"
+            tmp_file="$(mktemp)"
+            jq --arg service "$service" --arg image_ref "$image_ref" '. + {($service): $image_ref}' image-digests.json > "$tmp_file"
+            mv "$tmp_file" image-digests.json
+          done
+
+      - name: Generate release manifest
+        run: |
+          node deployments/scripts/generate-release-manifest.mjs \
+            --git-sha "$GITHUB_SHA" \
+            --services "${{ steps.changed-services.outputs.services_csv }}" \
+            --image-digests-file image-digests.json \
+            --output release-manifest.json
+
+      - name: Upload manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
+
+      - name: Upload manifest to S3
+        run: |
+          manifest_sha="$(jq -r '.manifestSha' release-manifest.json)"
+          aws s3 cp release-manifest.json "s3://${{ vars.RELEASE_MANIFEST_BUCKET }}/releases/manifests/${manifest_sha}.json"
+          aws s3 cp release-manifest.json "s3://${{ vars.RELEASE_MANIFEST_BUCKET }}/releases/by-git-sha/${GITHUB_SHA}.json"

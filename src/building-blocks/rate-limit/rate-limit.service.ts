@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Request } from 'express';
 import Redis from 'ioredis';
 import * as Prometheus from 'prom-client';
 import { RateLimiterRedis, RateLimiterRes } from 'rate-limiter-flexible';
 import configs from '../configs/configs';
+import { RuntimeHealthService } from '../health/runtime-health.service';
 import { extractIpFallbackKey, extractRateLimitKey } from './rate-limit.key-extractors';
 import {
   LimiterMode,
@@ -64,10 +65,60 @@ export class RateLimitService {
   });
   private readonly limiters = new Map<string, RateLimiterRedis>();
 
-  constructor() {
+  constructor(@Optional() private readonly runtimeHealthService?: RuntimeHealthService) {
+    this.markRedisState('down', {
+      message: 'Waiting for rate limiter Redis connection',
+      redisStatus: this.redisClient.status
+    });
+
+    this.redisClient.on('connect', () => {
+      this.markRedisState('degraded', {
+        message: 'Rate limiter Redis socket connected',
+        redisStatus: this.redisClient.status
+      });
+    });
+
+    this.redisClient.on('ready', () => {
+      this.markRedisState('up', {
+        redisStatus: this.redisClient.status
+      });
+    });
+
+    this.redisClient.on('close', () => {
+      this.markRedisState('degraded', {
+        message: 'Rate limiter Redis connection closed',
+        redisStatus: this.redisClient.status
+      });
+    });
+
+    this.redisClient.on('reconnecting', () => {
+      this.markRedisState('degraded', {
+        message: 'Rate limiter Redis reconnecting',
+        redisStatus: this.redisClient.status
+      });
+    });
+
+    this.redisClient.on('end', () => {
+      this.markRedisState('down', {
+        message: 'Rate limiter Redis connection ended',
+        redisStatus: this.redisClient.status
+      });
+    });
+
     this.redisClient.on('error', (error) => {
       this.logger.warn(`Rate limiter Redis error: ${error?.message || error}`);
+      this.markRedisState(configs.rateLimit.failOpen ? 'degraded' : 'down', {
+        error: error instanceof Error ? error.message : String(error),
+        redisStatus: this.redisClient.status
+      });
     });
+  }
+
+  private markRedisState(
+    state: 'up' | 'degraded' | 'down',
+    details?: Record<string, unknown>
+  ): void {
+    this.runtimeHealthService?.setComponentStatus('redis-rate-limit', state, details);
   }
 
   private getLimiter(policy: RateLimitPolicy, dimension: RateLimitDimension): RateLimiterRedis {
@@ -92,19 +143,33 @@ export class RateLimitService {
 
   private async ensureRedisConnected(): Promise<boolean> {
     if (this.redisClient.status === 'ready') {
+      this.markRedisState('up', {
+        redisStatus: this.redisClient.status
+      });
       return true;
     }
 
     if (this.redisClient.status === 'wait') {
       try {
         await this.redisClient.connect();
+        this.markRedisState('up', {
+          redisStatus: this.redisClient.status
+        });
         return true;
       } catch (error) {
         this.logger.warn(`Rate limiter Redis connect failed: ${error?.message || error}`);
+        this.markRedisState(configs.rateLimit.failOpen ? 'degraded' : 'down', {
+          error: error instanceof Error ? error.message : String(error),
+          redisStatus: this.redisClient.status
+        });
         return false;
       }
     }
 
+    this.markRedisState(configs.rateLimit.failOpen ? 'degraded' : 'down', {
+      message: 'Rate limiter Redis is unavailable',
+      redisStatus: this.redisClient.status
+    });
     return false;
   }
 
@@ -156,6 +221,10 @@ export class RateLimitService {
 
     if (!redisConnected && configs.rateLimit.failOpen) {
       degraded = true;
+      this.markRedisState('degraded', {
+        message: 'Rate limiter running fail-open because Redis is unavailable',
+        redisStatus: this.redisClient.status
+      });
 
       for (const dimension of policy.dimensions) {
         results.push(this.buildSkippedDimensionResult(dimension, 'degraded', false));
@@ -240,6 +309,12 @@ export class RateLimitService {
 
         this.logger.warn(`Rate limiter consume error on ${policy.id}.${dimension.id}: ${error?.message || error}`);
         errorCounter.inc({ policy_id: policy.id, reason: 'consume_error' });
+        this.markRedisState(configs.rateLimit.failOpen ? 'degraded' : 'down', {
+          error: error instanceof Error ? error.message : String(error),
+          policyId: policy.id,
+          dimensionId: dimension.id,
+          redisStatus: this.redisClient.status
+        });
 
         if (configs.rateLimit.failOpen) {
           degraded = true;
@@ -285,6 +360,12 @@ export class RateLimitService {
         : 'allow';
 
     decisionCounter.inc({ policy_id: policy.id, mode, outcome });
+
+    if (redisConnected && !degraded) {
+      this.markRedisState('up', {
+        redisStatus: this.redisClient.status
+      });
+    }
 
     return {
       policyId: policy.id,

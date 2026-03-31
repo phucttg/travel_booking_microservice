@@ -20,6 +20,8 @@ import { RabbitmqModule } from 'building-blocks/rabbitmq/rabbitmq.module';
 import { RegisterController, RegisterHandler } from '@/auth/features/v1/register/register';
 import { IdentityUserWriteService } from '@/user/services/identity-user-write.service';
 import { IdentityUserEventPublisherService } from '@/user/services/identity-user-event-publisher.service';
+import { InternalOnlyGuard } from 'building-blocks/internal-auth/internal-only.guard';
+import { AuthDependencyHealthController } from '@/auth/features/internal/auth-dependency-health';
 
 @Module({
   imports: [CqrsModule, RabbitmqModule.forRoot(), TypeOrmModule.forFeature([Token, User])],
@@ -28,7 +30,8 @@ import { IdentityUserEventPublisherService } from '@/user/services/identity-user
     LogoutController,
     RefreshTokenController,
     ValidateAccessTokenController,
-    RegisterController
+    RegisterController,
+    AuthDependencyHealthController
   ],
   providers: [
     LoginHandler,
@@ -39,6 +42,7 @@ import { IdentityUserEventPublisherService } from '@/user/services/identity-user
     RegisterHandler,
     IdentityUserWriteService,
     IdentityUserEventPublisherService,
+    InternalOnlyGuard,
     {
       provide: 'IAuthRepository',
       useClass: AuthRepository

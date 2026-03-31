@@ -1,11 +1,6 @@
-name: CI
+name: PR CI
 
 on:
-  push:
-    branches: ["main"]
-    paths-ignore:
-      - "README.md"
-      - "CHANGELOG.md"
   pull_request:
     branches: ["main"]
 
@@ -16,7 +11,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      building_blocks: ${{ steps.filter.outputs.building_blocks }}
+      backend_shared: ${{ steps.filter.outputs.backend_shared }}
       identity: ${{ steps.filter.outputs.identity }}
       flight: ${{ steps.filter.outputs.flight }}
       passenger: ${{ steps.filter.outputs.passenger }}
@@ -33,8 +28,9 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            building_blocks:
+            backend_shared:
               - 'src/building-blocks/**'
+              - '.dockerignore'
             identity:
               - 'src/identity/**'
             flight:
@@ -55,7 +51,7 @@ jobs:
 
   identity:
     needs: changes
-    if: needs.changes.outputs.identity == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: needs.changes.outputs.identity == 'true' || needs.changes.outputs.backend_shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,18 +62,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: |
+            src/building-blocks/package-lock.json
+            src/identity/package-lock.json
 
       - name: Build building-blocks
         run: |
-          npm install
+          npm ci
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Build identity
+      - name: Lint identity
         run: |
-          npm install
-          npm run build
+          npm ci
+          npm run lint
+        working-directory: ./src/identity
+
+      - name: Build identity
+        run: npm run build
         working-directory: ./src/identity
 
       - name: Test identity
@@ -85,11 +89,15 @@ jobs:
         working-directory: ./src/identity
         env:
           NODE_ENV: test
+          APP_ENV: test
           JWT_SECRET: test-jwt-secret-1234
+
+      - name: Validate identity Docker image
+        run: docker build -f src/identity/Dockerfile .
 
   flight:
     needs: changes
-    if: needs.changes.outputs.flight == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: needs.changes.outputs.flight == 'true' || needs.changes.outputs.backend_shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,18 +108,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: |
+            src/building-blocks/package-lock.json
+            src/flight/package-lock.json
 
       - name: Build building-blocks
         run: |
-          npm install
+          npm ci
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Build flight
+      - name: Lint flight
         run: |
-          npm install
-          npm run build
+          npm ci
+          npm run lint
+        working-directory: ./src/flight
+
+      - name: Build flight
+        run: npm run build
         working-directory: ./src/flight
 
       - name: Test flight
@@ -119,11 +135,15 @@ jobs:
         working-directory: ./src/flight
         env:
           NODE_ENV: test
+          APP_ENV: test
           JWT_SECRET: test-jwt-secret-1234
+
+      - name: Validate flight Docker image
+        run: docker build -f src/flight/Dockerfile .
 
   passenger:
     needs: changes
-    if: needs.changes.outputs.passenger == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: needs.changes.outputs.passenger == 'true' || needs.changes.outputs.backend_shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -134,18 +154,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: |
+            src/building-blocks/package-lock.json
+            src/passenger/package-lock.json
 
       - name: Build building-blocks
         run: |
-          npm install
+          npm ci
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Build passenger
+      - name: Lint passenger
         run: |
-          npm install
-          npm run build
+          npm ci
+          npm run lint
+        working-directory: ./src/passenger
+
+      - name: Build passenger
+        run: npm run build
         working-directory: ./src/passenger
 
       - name: Test passenger
@@ -153,11 +181,15 @@ jobs:
         working-directory: ./src/passenger
         env:
           NODE_ENV: test
+          APP_ENV: test
           JWT_SECRET: test-jwt-secret-1234
+
+      - name: Validate passenger Docker image
+        run: docker build -f src/passenger/Dockerfile .
 
   booking:
     needs: changes
-    if: needs.changes.outputs.booking == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: needs.changes.outputs.booking == 'true' || needs.changes.outputs.backend_shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -168,18 +200,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: |
+            src/building-blocks/package-lock.json
+            src/booking/package-lock.json
 
       - name: Build building-blocks
         run: |
-          npm install
+          npm ci
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Build booking
+      - name: Lint booking
         run: |
-          npm install
-          npm run build
+          npm ci
+          npm run lint
+        working-directory: ./src/booking
+
+      - name: Build booking
+        run: npm run build
         working-directory: ./src/booking
 
       - name: Test booking
@@ -187,11 +227,15 @@ jobs:
         working-directory: ./src/booking
         env:
           NODE_ENV: test
+          APP_ENV: test
           JWT_SECRET: test-jwt-secret-1234
+
+      - name: Validate booking Docker image
+        run: docker build -f src/booking/Dockerfile .
 
   payment:
     needs: changes
-    if: needs.changes.outputs.payment == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: needs.changes.outputs.payment == 'true' || needs.changes.outputs.backend_shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -202,18 +246,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: |
+            src/building-blocks/package-lock.json
+            src/payment/package-lock.json
 
       - name: Build building-blocks
         run: |
-          npm install
+          npm ci
           npm run build
         working-directory: ./src/building-blocks
 
-      - name: Build payment
+      - name: Lint payment
         run: |
-          npm install
-          npm run build
+          npm ci
+          npm run lint
+        working-directory: ./src/payment
+
+      - name: Build payment
+        run: npm run build
         working-directory: ./src/payment
 
       - name: Test payment
@@ -224,7 +276,11 @@ jobs:
         working-directory: ./src/payment
         env:
           NODE_ENV: test
+          APP_ENV: test
           JWT_SECRET: test-jwt-secret-1234
+
+      - name: Validate payment Docker image
+        run: docker build -f src/payment/Dockerfile .
 
   frontend:
     needs: changes
@@ -239,12 +295,20 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: ./src/frontend
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: ./src/frontend
 
       - name: Build frontend
-        run: |
-          npm install
-          npm run build
+        run: npm run build
         working-directory: ./src/frontend
 
       - name: Test frontend
@@ -253,9 +317,28 @@ jobs:
           npm test -- booking-status-and-cancel.test.tsx presentation.rules.test.ts
         working-directory: ./src/frontend
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: ./src/frontend
+
+      - name: Run frontend smoke
+        run: npm run e2e -- --grep "login page renders"
+        working-directory: ./src/frontend
+        env:
+          CI: "true"
+          VITE_APP_TITLE: SkyBooking
+
   compose-config:
     needs: changes
-    if: needs.changes.outputs.compose == 'true' || needs.changes.outputs.booking == 'true' || needs.changes.outputs.payment == 'true' || needs.changes.outputs.identity == 'true' || needs.changes.outputs.passenger == 'true' || needs.changes.outputs.building_blocks == 'true'
+    if: |
+      needs.changes.outputs.compose == 'true' ||
+      needs.changes.outputs.backend_shared == 'true' ||
+      needs.changes.outputs.identity == 'true' ||
+      needs.changes.outputs.flight == 'true' ||
+      needs.changes.outputs.passenger == 'true' ||
+      needs.changes.outputs.booking == 'true' ||
+      needs.changes.outputs.payment == 'true' ||
+      needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -265,4 +348,4 @@ jobs:
       - name: Validate docker compose files
         run: |
           docker compose -f deployments/docker-compose/docker-compose.yaml config > /dev/null
-          docker compose -f deployments/docker-compose/docker-compose.yaml -f deployments/docker-compose/docker-compose.rds.yaml config > /dev/null
+          docker compose -f deployments/docker-compose/docker-compose.yaml -f deployments/docker-compose/docker-compose.dev-rds.troubleshooting.yaml config > /dev/null

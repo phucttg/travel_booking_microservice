@@ -133,7 +133,7 @@ const endpointPolicy = new Map([
     ['GET /api/v1/passenger/get-by-id', 'read.authenticated.default'],
     ['GET /api/v1/passenger/get-by-user-id', 'read.authenticated.default']
 ]);
-const bypassPrefixes = ['/health', '/metrics', '/swagger'];
+const bypassPrefixes = ['/health', '/internal/health', '/metrics', '/swagger'];
 const validateAccessTokenRoute = 'POST /api/v1/identity/validate-access-token';
 const dynamicValidatePolicyId = 'identity.validate.dynamic';
 const normalizePath = (rawPath) => {

@@ -1,3 +1,4 @@
+# Dev-only overlay for local troubleshooting against shared RDS-style dependencies.
 services:
   identity:
     env_file:

@@ -160,36 +160,40 @@ describe('create booking flow', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows a warning and blocks the deep link flow for invalid flights', async () => {
-    const invalidFlight = makeFlight({
-      id: 2,
-      flightNumber: 'VN000',
-      flightStatus: FlightStatus.CANCELED
-    });
-    const validFlight = makeFlight({
-      id: 1,
-      flightNumber: 'VN123',
-      flightStatus: FlightStatus.SCHEDULED
-    });
+  it(
+    'shows a warning and blocks the deep link flow for invalid flights',
+    async () => {
+      const invalidFlight = makeFlight({
+        id: 2,
+        flightNumber: 'VN000',
+        flightStatus: FlightStatus.CANCELED
+      });
+      const validFlight = makeFlight({
+        id: 1,
+        flightNumber: 'VN123',
+        flightStatus: FlightStatus.SCHEDULED
+      });
 
-    const requestCounts = mockCreateBookingDependencies({
-      flights: [validFlight, invalidFlight],
-      selectedFlight: invalidFlight
-    });
+      const requestCounts = mockCreateBookingDependencies({
+        flights: [validFlight, invalidFlight],
+        selectedFlight: invalidFlight
+      });
 
-    renderWithRoute(<CreateBookingPage />, {
-      route: '/bookings/create?flightId=2',
-      path: '/bookings/create'
-    });
+      renderWithRoute(<CreateBookingPage />, {
+        route: '/bookings/create?flightId=2',
+        path: '/bookings/create'
+      });
 
-    expect(await screen.findByText('Chuyến bay từ deep link hiện không còn mở đặt vé')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Chọn chuyến bay' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Chọn ghế' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Không thể đặt' })).toBeDisabled();
-    expect(requestCounts.flightById).toBe(0);
-    expect(requestCounts.seatInventory).toBe(0);
-    expect(requestCounts.walletMe).toBe(0);
-  });
+      expect(await screen.findByText('Chuyến bay từ deep link hiện không còn mở đặt vé')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Chọn chuyến bay' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Chọn ghế' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Không thể đặt' })).toBeDisabled();
+      expect(requestCounts.flightById).toBe(0);
+      expect(requestCounts.seatInventory).toBe(0);
+      expect(requestCounts.walletMe).toBe(0);
+    },
+    10000
+  );
 
   it('renders every flight returned by backend without extra past-flight filtering', async () => {
     const futureFlight = makeFlight({

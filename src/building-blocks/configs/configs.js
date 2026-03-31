@@ -12,6 +12,7 @@ dotenv_1.default.config({ override: true });
 const envVarsSchema = joi_1.default.object()
     .keys({
     NODE_ENV: joi_1.default.string().required(),
+    APP_ENV: joi_1.default.string().default(nodeEnv).description('Runtime environment classification'),
     SERVICE_NAME: joi_1.default.string(),
     PORT: joi_1.default.number().default(3000),
     JWT_SECRET: joi_1.default.string().trim().min(16).required().description('JWT secret key'),
@@ -78,6 +79,9 @@ const envVarsSchema = joi_1.default.object()
     POSTGRES_MIGRATIONS_RUN: joi_1.default.boolean()
         .default(false)
         .description('Run migrations after running project'),
+    BOOTSTRAP_SEED_ENABLED: joi_1.default.boolean()
+        .default(false)
+        .description('Enable boot-time seeders for local development'),
     POSTGRES_SSL: joi_1.default.boolean().default(false).description('Use SSL for Postgres connection'),
     POSTGRES_SSL_REJECT_UNAUTHORIZED: joi_1.default.boolean()
         .default(true)
@@ -110,6 +114,16 @@ const envVarsSchema = joi_1.default.object()
     OUTBOX_RETRY_BASE_MS: joi_1.default.number()
         .default(5000)
         .description('Base retry delay for outbox failures'),
+    HEALTH_AUTH_DEPENDENCY_POLL_INTERVAL_MS: joi_1.default.number()
+        .integer()
+        .min(1000)
+        .default(15000)
+        .description('Polling interval for the identity auth dependency probe'),
+    HEALTH_AUTH_DEPENDENCY_TIMEOUT_MS: joi_1.default.number()
+        .integer()
+        .min(250)
+        .default(3000)
+        .description('Timeout for the identity auth dependency probe'),
     OPEN_TELEMETRY_COLLECTOR_URL: joi_1.default.string()
         .default('http://localhost:4317')
         .description('Collector URL'),
@@ -125,8 +139,15 @@ const { value: envVars, error } = envVarsSchema
 if (error) {
     throw new Error(`Config validation error: ${error.message}`);
 }
+const normalizeServiceId = (value) => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+service$/, '')
+    .replace(/[_\s]+/g, '-');
 const nodeEnvironment = String(envVars.NODE_ENV || '').toLowerCase();
-const requiresStrongInternalSecret = envVars.RATE_LIMIT_ENABLED && ['production', 'staging'].includes(nodeEnvironment);
+const appEnvironment = String(envVars.APP_ENV || envVars.NODE_ENV || '').toLowerCase();
+const serviceId = normalizeServiceId(envVars.OPEN_TELEMETRY_SERVICE_NAME || envVars.SERVICE_NAME);
+const requiresStrongInternalSecret = envVars.RATE_LIMIT_ENABLED && ['production', 'staging'].includes(appEnvironment);
 if (requiresStrongInternalSecret &&
     (!envVars.INTERNAL_SERVICE_AUTH_SECRET ||
         envVars.INTERNAL_SERVICE_AUTH_SECRET === 'local-dev-internal-secret')) {
@@ -138,6 +159,9 @@ const internalAllowedServiceNames = String(envVars.RATE_LIMIT_INTERNAL_ALLOWED_S
     .filter((value) => Boolean(value));
 exports.default = {
     env: envVars.NODE_ENV,
+    appEnv: envVars.APP_ENV,
+    isProductionLike: ['production', 'staging'].includes(appEnvironment),
+    serviceId,
     serviceName: envVars.SERVICE_NAME,
     port: envVars.PORT,
     rabbitmq: {
@@ -163,6 +187,9 @@ exports.default = {
         migrationsRun: envVars.POSTGRES_MIGRATIONS_RUN,
         ssl: envVars.POSTGRES_SSL,
         sslRejectUnauthorized: envVars.POSTGRES_SSL_REJECT_UNAUTHORIZED
+    },
+    bootstrap: {
+        seedEnabled: envVars.BOOTSTRAP_SEED_ENABLED
     },
     jwt: {
         secret: envVars.JWT_SECRET,
@@ -196,6 +223,10 @@ exports.default = {
         pollIntervalMs: envVars.OUTBOX_POLL_INTERVAL_MS,
         maxAttempts: envVars.OUTBOX_MAX_ATTEMPTS,
         retryBaseMs: envVars.OUTBOX_RETRY_BASE_MS
+    },
+    health: {
+        authDependencyPollIntervalMs: envVars.HEALTH_AUTH_DEPENDENCY_POLL_INTERVAL_MS,
+        authDependencyTimeoutMs: envVars.HEALTH_AUTH_DEPENDENCY_TIMEOUT_MS
     },
     opentelemetry: {
         serviceName: envVars.OPEN_TELEMETRY_SERVICE_NAME,

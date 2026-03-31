@@ -8,13 +8,39 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
 const configs_1 = __importDefault(require("../configs/configs"));
 const runtime_health_service_1 = require("./runtime-health.service");
+const BACKEND_SERVICE_IDS = new Set(['identity', 'flight', 'passenger', 'booking', 'payment']);
+const OUTBOX_SERVICE_IDS = new Set(['identity', 'booking', 'payment']);
+const REMOTE_AUTH_SERVICE_IDS = new Set(['flight', 'passenger', 'booking', 'payment']);
 const getAuthMode = () => configs_1.default.jwt.remoteIntrospectionEnabled ? 'remote-introspection' : 'offline-jwt';
+const getExpectedComponentNames = () => {
+    if (!BACKEND_SERVICE_IDS.has(configs_1.default.serviceId)) {
+        return ['db'];
+    }
+    const componentNames = ['db', 'rabbitmq', 'redis-rate-limit'];
+    if (OUTBOX_SERVICE_IDS.has(configs_1.default.serviceId)) {
+        componentNames.push('outbox');
+    }
+    if (configs_1.default.jwt.remoteIntrospectionEnabled && REMOTE_AUTH_SERVICE_IDS.has(configs_1.default.serviceId)) {
+        componentNames.push('identity-auth-dependency');
+    }
+    return componentNames;
+};
+const getRequiredComponentNames = () => {
+    if (!BACKEND_SERVICE_IDS.has(configs_1.default.serviceId)) {
+        return ['db'];
+    }
+    return getExpectedComponentNames().filter((componentName) => componentName !== 'redis-rate-limit');
+};
+const getDefaultComponentStatus = (message) => ({
+    state: 'down',
+    details: {
+        message
+    },
+    updatedAt: new Date().toISOString()
+});
 function registerHealthEndpoints(app) {
     const runtimeHealthService = app.get(runtime_health_service_1.RuntimeHealthService);
     const dataSource = app.get(typeorm_1.DataSource, { strict: false });
-    runtimeHealthService.setComponentStatus('authMode', 'up', {
-        mode: getAuthMode()
-    });
     app.use('/health/live', (_request, response) => {
         response.status(200).json({
             service: configs_1.default.serviceName,
@@ -25,24 +51,32 @@ function registerHealthEndpoints(app) {
     app.use('/health/ready', (_request, response) => {
         try {
             const dbReady = dataSource ? dataSource.isInitialized : true;
+            const expectedComponentNames = getExpectedComponentNames();
+            const runtimeComponents = runtimeHealthService.getComponentStatuses();
             const components = {
                 db: {
                     state: dbReady ? 'up' : 'down',
                     updatedAt: new Date().toISOString()
                 },
-                ...runtimeHealthService.getComponentStatuses()
+                ...runtimeComponents
             };
-            const componentStates = Object.values(components).map((component) => component.state);
-            const state = !dbReady
-                ? 'not_ready'
-                : componentStates.every((componentState) => componentState === 'up')
-                    ? 'ready'
-                    : 'degraded';
-            response.status(dbReady ? 200 : 503).json({
+            for (const componentName of expectedComponentNames) {
+                if (!components[componentName]) {
+                    components[componentName] = getDefaultComponentStatus(`Missing runtime health signal for ${componentName}`);
+                }
+            }
+            const requiredComponents = getRequiredComponentNames();
+            const optionalComponents = expectedComponentNames.filter((componentName) => !requiredComponents.includes(componentName));
+            const ready = requiredComponents.every((componentName) => components[componentName]?.state === 'up');
+            const optionalHealthy = optionalComponents.every((componentName) => components[componentName]?.state === 'up');
+            const state = ready ? (optionalHealthy ? 'ready' : 'degraded') : 'not_ready';
+            response.status(ready ? 200 : 503).json({
                 service: configs_1.default.serviceName,
-                ready: dbReady,
+                ready,
                 state,
                 authMode: getAuthMode(),
+                requiredComponents,
+                optionalComponents,
                 timestamp: new Date().toISOString(),
                 components
             });

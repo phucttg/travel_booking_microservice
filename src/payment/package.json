@@ -12,8 +12,8 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typeorm": "npm run build && npx typeorm -d ./dist/data/data-source.js",
     "migration:generate": "npm run typeorm -- migration:generate",
-    "migration:run": "npm run typeorm -- migration:run",
-    "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:run": "npm run build && node dist/migrate.js run",
+    "migration:revert": "npm run build && node dist/migrate.js revert",
     "verify:swagger-runtime": "node ../building-blocks/scripts/check-swagger-generated-imports.js dist",
     "test": "jest"
   },
