@@ -37,7 +37,7 @@ if [[ "$login_status" != "200" ]]; then
   exit 1
 fi
 
-access_token="$(jq -r '.access // empty' "$response_file")"
+access_token="$(jq -r '.access.token // empty' "$response_file")"
 
 if [[ -z "$access_token" ]]; then
   echo "Smoke login response did not include an access token" >&2
