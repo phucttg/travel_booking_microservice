@@ -44,6 +44,29 @@ jobs:
 
       - name: Run migration tasks
         run: |
+          print_migration_diagnostics() {
+            local service="$1"
+            local task_arn="$2"
+            local describe_response="$3"
+
+            echo "Migration task failed for $service" >&2
+            jq -r --arg service "$service" --arg taskArn "$task_arn" '
+              {
+                service: $service,
+                taskArn: $taskArn,
+                taskDefinitionArn: .tasks[0].taskDefinitionArn,
+                stopCode: .tasks[0].stopCode,
+                stoppedReason: .tasks[0].stoppedReason,
+                containers: (.tasks[0].containers // [] | map({
+                  name: .name,
+                  lastStatus: .lastStatus,
+                  exitCode: .exitCode,
+                  reason: .reason
+                }))
+              }
+            ' <<< "$describe_response" >&2
+          }
+
           services="$(jq -r '.migratableServices[]?' release-manifest.json)"
 
           if [[ -z "$services" ]]; then
@@ -75,29 +98,61 @@ jobs:
                 ]
               }')"
 
-            task_arn="$(
+            run_task_response="$(
               aws ecs run-task \
                 --cluster "${{ vars.ECS_CLUSTER }}" \
                 --launch-type FARGATE \
                 --task-definition "$current_task_definition" \
                 --network-configuration "awsvpcConfiguration={subnets=[${{ vars.ECS_PRIVATE_SUBNETS }}],securityGroups=[${{ vars.ECS_SECURITY_GROUPS }}],assignPublicIp=DISABLED}" \
                 --overrides "$overrides" \
-                --query 'tasks[0].taskArn' \
-                --output text
+                --output json
             )"
+
+            task_arn="$(jq -r '.tasks[0].taskArn // empty' <<< "$run_task_response")"
+
+            if [[ -z "$task_arn" || "$task_arn" == "None" ]]; then
+              echo "Failed to start migration task for $service" >&2
+              echo "$run_task_response" >&2
+              exit 1
+            fi
 
             aws ecs wait tasks-stopped --cluster "${{ vars.ECS_CLUSTER }}" --tasks "$task_arn"
 
-            exit_code="$(
-              aws ecs describe-tasks \
-                --cluster "${{ vars.ECS_CLUSTER }}" \
-                --tasks "$task_arn" \
-                --query 'tasks[0].containers[?name==`'"$service"'`][0].exitCode' \
-                --output text
-            )"
+            describe_response=''
+            target_container=''
+            exit_code=''
 
-            if [[ "$exit_code" != "0" ]]; then
-              echo "Migration task failed for $service" >&2
+            for attempt in $(seq 1 10); do
+              describe_response="$(
+                aws ecs describe-tasks \
+                  --cluster "${{ vars.ECS_CLUSTER }}" \
+                  --tasks "$task_arn" \
+                  --output json
+              )"
+
+              target_container="$(
+                jq -c --arg service "$service" \
+                  '[.tasks[0].containers[]? | select(.name == $service)][0] // empty' \
+                  <<< "$describe_response"
+              )"
+
+              exit_code="$(
+                jq -r --arg service "$service" \
+                  '[.tasks[0].containers[]? | select(.name == $service)][0].exitCode // empty' \
+                  <<< "$describe_response"
+              )"
+
+              if [[ -n "$exit_code" ]]; then
+                break
+              fi
+
+              if [[ "$attempt" -lt 10 ]]; then
+                sleep 3
+              fi
+            done
+
+            if [[ -z "$target_container" || "$exit_code" != "0" ]]; then
+              print_migration_diagnostics "$service" "$task_arn" "$describe_response"
               exit 1
             fi
           done <<< "$services"
