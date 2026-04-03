@@ -5,11 +5,11 @@ const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
 const passportRegex = /^[A-Z0-9]{6,20}$/i;
 
 export const loginSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
+  email: z.string().email('Invalid email address'),
   password: z
     .string()
-    .min(8, 'Mật khẩu tối thiểu 8 ký tự')
-    .regex(passwordRegex, 'Mật khẩu phải chứa ít nhất 1 chữ và 1 số')
+    .min(8, 'Password must be at least 8 characters')
+    .regex(passwordRegex, 'Password must include at least 1 letter and 1 number')
 });
 
 const userBaseSchema = z.object({

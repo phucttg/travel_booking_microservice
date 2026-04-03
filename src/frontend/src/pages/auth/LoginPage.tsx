@@ -17,9 +17,9 @@ type RegistrationState = {
 };
 
 const trustPoints = [
-  '10+ sân bay nội địa Việt Nam với routes thực',
-  'Đặt vé online với hơn 6 dòng máy bay hiện đại',
-  'Quản lý booking, passenger, seat inventory real-time'
+  '10+ domestic Vietnam airports with live routes',
+  'Book online across 6+ modern aircraft lines',
+  'Manage bookings, passengers, and seat inventory in real time'
 ];
 
 export const LoginPage = () => {
@@ -122,7 +122,7 @@ export const LoginPage = () => {
                 Vietnam Domestic Flight Booking
               </Text>
               <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: 15, lineHeight: 1.8, maxWidth: 540 }}>
-                Đặt vé máy bay nội địa Việt Nam - Hà Nội, TP.HCM, Đà Nẵng, Nha Trang, Phú Quốc và hơn 10 điểm đến.
+                Book domestic flights across Vietnam - Hanoi, Ho Chi Minh City, Da Nang, Nha Trang, Phu Quoc, and 10+ destinations.
               </Text>
             </div>
 
@@ -170,7 +170,7 @@ export const LoginPage = () => {
             <Title level={3} style={{ marginBottom: 4 }}>
               SkyBooking
             </Title>
-            <Text type="secondary">Đăng nhập để tiếp tục</Text>
+            <Text type="secondary">Sign in to continue</Text>
           </Space>
 
           <Form layout="vertical" onFinish={handleSubmit(onSubmit)} style={{ marginTop: 24 }}>
@@ -180,8 +180,8 @@ export const LoginPage = () => {
                 showIcon
                 closable
                 onClose={() => setRegistrationState(null)}
-                message="Đăng ký thành công"
-                description="Bạn có thể đăng nhập ngay bằng tài khoản vừa tạo."
+                message="Registration successful"
+                description="You can sign in now with your newly created account."
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -199,7 +199,7 @@ export const LoginPage = () => {
             </Form.Item>
 
             <Form.Item
-              label="Mật khẩu"
+              label="Password"
               validateStatus={errors.password ? 'error' : undefined}
               help={errors.password?.message}
             >
@@ -207,12 +207,12 @@ export const LoginPage = () => {
                 name="password"
                 control={control}
                 render={({ field }) => (
-                  <Input.Password {...field} prefix={<LockOutlined />} placeholder="Mật khẩu" size="large" />
+                  <Input.Password {...field} prefix={<LockOutlined />} placeholder="Password" size="large" />
                 )}
               />
             </Form.Item>
 
-            {loginMutation.isError && <Alert type="error" message="Đăng nhập thất bại" showIcon style={{ marginBottom: 16 }} />}
+            {loginMutation.isError && <Alert type="error" message="Sign in failed" showIcon style={{ marginBottom: 16 }} />}
 
             <Button
               htmlType="submit"
@@ -222,16 +222,16 @@ export const LoginPage = () => {
               loading={loginMutation.isPending}
               style={{ marginTop: 8 }}
             >
-              Đăng nhập
+              Sign in
             </Button>
 
             <Space
               align="center"
               style={{ width: '100%', justifyContent: 'space-between', marginTop: 12 }}
             >
-              <Text type="secondary">Chưa có tài khoản?</Text>
+              <Text type="secondary">Don't have an account?</Text>
               <Button type="link" onClick={() => navigate('/register')} style={{ paddingInline: 0 }}>
-                Đăng ký
+                Register
               </Button>
             </Space>
 

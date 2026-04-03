@@ -10,11 +10,11 @@ describe('integration login flow', () => {
     render(<LoginPage />, { wrapper: createTestWrapper() });
 
     fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'dev@dev.com' } });
-    fireEvent.change(screen.getByPlaceholderText('Mật khẩu'), { target: { value: 'Admin@12345' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
+    fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: 'Admin@12345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     });
   });
 });

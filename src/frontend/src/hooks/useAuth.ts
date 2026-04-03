@@ -26,12 +26,12 @@ export const useLogin = () => {
       return userResponse.data;
     },
     onSuccess: () => {
-      message.success('Đăng nhập thành công');
+      message.success('Signed in successfully');
       navigate('/dashboard', { replace: true });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error) as AppError;
-      message.error(appError.message || 'Đăng nhập thất bại');
+      message.error(appError.message || 'Sign in failed');
     }
   });
 };

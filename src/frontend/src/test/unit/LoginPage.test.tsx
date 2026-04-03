@@ -24,15 +24,15 @@ describe('LoginPage', () => {
 
     expect(screen.getAllByText('SkyBooking').length).toBeGreaterThan(0);
     expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Mật khẩu')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
   });
 
   it('should submit form values', async () => {
     render(<LoginPage />, { wrapper: createTestWrapper() });
 
     fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'dev@dev.com' } });
-    fireEvent.change(screen.getByPlaceholderText('Mật khẩu'), { target: { value: 'Admin@12345' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
+    fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: 'Admin@12345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => {
       expect(mutate).toHaveBeenCalledWith({ email: 'dev@dev.com', password: 'Admin@12345' });
@@ -55,8 +55,8 @@ describe('LoginPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Đăng ký thành công')).toBeInTheDocument();
+    expect(await screen.findByText('Registration successful')).toBeInTheDocument();
     expect(screen.getByDisplayValue('fresh@example.com')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Đăng ký' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Register' })).toBeInTheDocument();
   });
 });
