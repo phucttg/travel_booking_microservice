@@ -21,15 +21,15 @@ const { Text, Title } = Typography;
 const getMenuItems = (isAdmin: boolean): ItemType[] => {
   const base: ItemType[] = [
     { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
-    { key: '/flights', label: 'Chuyến bay', icon: <RocketOutlined /> },
-    { key: '/wallet', label: 'Ví của tôi', icon: <CreditCardOutlined /> },
+    { key: '/flights', label: 'Flights', icon: <RocketOutlined /> },
+    { key: '/wallet', label: 'My Wallet', icon: <CreditCardOutlined /> },
     {
       key: 'bookings',
-      label: 'Đặt vé',
+      label: 'Bookings',
       icon: <BookOutlined />,
       children: [
-        { key: '/bookings', label: 'Danh sách' },
-        { key: '/bookings/create', label: 'Đặt vé mới' }
+        { key: '/bookings', label: 'List' },
+        { key: '/bookings/create', label: 'New booking' }
       ]
     }
   ];
@@ -40,13 +40,13 @@ const getMenuItems = (isAdmin: boolean): ItemType[] => {
     {
       type: 'group',
       key: 'admin-group',
-      label: 'QUẢN LÝ',
+      label: 'MANAGEMENT',
       children: [
-        { key: '/users', label: 'Người dùng', icon: <UserOutlined /> },
-        { key: '/passengers', label: 'Hành khách', icon: <TeamOutlined /> },
-        { key: '/airports', label: 'Sân bay', icon: <EnvironmentOutlined /> },
-        { key: '/aircrafts', label: 'Máy bay', icon: <SendOutlined /> },
-        { key: '/payments/reconcile', label: 'Duyệt nạp ví', icon: <CreditCardOutlined /> }
+        { key: '/users', label: 'Users', icon: <UserOutlined /> },
+        { key: '/passengers', label: 'Passengers', icon: <TeamOutlined /> },
+        { key: '/airports', label: 'Airports', icon: <EnvironmentOutlined /> },
+        { key: '/aircrafts', label: 'Aircraft', icon: <SendOutlined /> },
+        { key: '/payments/reconcile', label: 'Review wallet top-ups', icon: <CreditCardOutlined /> }
       ]
     } as ItemType
   );

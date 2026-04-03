@@ -330,7 +330,7 @@ export const DashboardPage = () => {
       <PageHeader
         eyebrow="Operations overview"
         title="Dashboard"
-        subtitle={`Xin chào, ${user?.name || 'Unknown'}. Workspace này tổng hợp activity từ identity, flight, passenger và booking services.`}
+        subtitle={`Hello, ${user?.name || 'Unknown'}. This workspace brings together activity from the identity, flight, passenger, and booking services.`}
         meta="Balanced bilingual UI · VND pricing"
       />
 
@@ -341,8 +341,8 @@ export const DashboardPage = () => {
         title={adminMode ? 'Booking operations at a glance' : 'Travel and booking workspace'}
         subtitle={
           adminMode
-            ? 'Theo dõi inventory, booking activity và flight movement trong cùng một view. Không dùng fake analytics; chỉ hiển thị signal lấy được từ backend hiện tại.'
-            : 'Điểm bắt đầu nhanh cho hành trình đặt vé: xem chuyến bay, tạo booking mới và rà lại các giao dịch gần đây.'
+            ? 'Track inventory, booking activity, and flight movement in one view. No fake analytics; only signals currently available from the backend are shown.'
+            : 'Start your booking journey quickly: browse flights, create a new booking, and review recent transactions.'
         }
         tags={
           <>
@@ -353,10 +353,10 @@ export const DashboardPage = () => {
         extra={
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Button type="primary" size="large" onClick={() => navigate('/bookings/create')}>
-              Đặt vé mới
+              Create booking
             </Button>
             <Button size="large" onClick={() => navigate('/flights')}>
-              Xem chuyến bay
+              Browse flights
             </Button>
           </Space>
         }
@@ -409,7 +409,7 @@ export const DashboardPage = () => {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={10}>
-              <SectionCard title="Phân bổ trạng thái chuyến bay" subtitle="Flight status distribution">
+              <SectionCard title="Flight status distribution" subtitle="Current operational breakdown by status">
                 <div style={{ width: '100%', height: 280 }}>
                   <ResponsiveContainer>
                     <PieChart>
@@ -455,17 +455,17 @@ export const DashboardPage = () => {
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={11}>
               <SectionCard
-                title="Booking gần đây"
+                title="Recent bookings"
                 subtitle="Latest booking activity mapped from the booking service"
                 extra={
                   <Button type="link" onClick={() => navigate('/bookings')}>
-                    Xem tất cả
+                    View all
                   </Button>
                 }
               >
                 <List
                   dataSource={recentBookings}
-                  locale={{ emptyText: 'Chưa có booking nào khả dụng.' }}
+                  locale={{ emptyText: 'No bookings available yet.' }}
                   renderItem={(item: BookingDto) => {
                     const route = buildRouteDescriptor(
                       airportMap[item.departureAirportId],
@@ -509,17 +509,17 @@ export const DashboardPage = () => {
 
             <Col xs={24} xl={13}>
               <SectionCard
-                title="Chuyến bay sắp tới"
+                title="Upcoming flights"
                 subtitle="Operational view of the next scheduled flights"
                 extra={
                   <Button type="link" onClick={() => navigate('/flights')}>
-                    Đi tới flight ops
+                    Open flight ops
                   </Button>
                 }
               >
                 <List
                   dataSource={upcomingFlights}
-                  locale={{ emptyText: 'Chưa có chuyến bay gần nhất.' }}
+                  locale={{ emptyText: 'No upcoming flights available.' }}
                   renderItem={(item) => {
                     const route = buildRouteDescriptor(
                       airportMap[item.departureAirportId],
@@ -596,13 +596,13 @@ export const DashboardPage = () => {
               <SectionCard title="Quick actions" subtitle="Start the next step without leaving the dashboard">
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
                   <Button type="primary" size="large" block onClick={() => navigate('/bookings/create')}>
-                    Đặt vé mới
+                    Create booking
                   </Button>
                   <Button size="large" block onClick={() => navigate('/flights')}>
-                    Xem chuyến bay
+                    Browse flights
                   </Button>
                   <Button size="large" block onClick={() => navigate('/bookings')}>
-                    Xem booking
+                    View bookings
                   </Button>
                 </Space>
               </SectionCard>
@@ -610,12 +610,12 @@ export const DashboardPage = () => {
 
             <Col xs={24} xl={14}>
               <SectionCard
-                title="Booking gần đây của tôi"
+                title="My recent bookings"
                 subtitle="Latest visible transactions from the current booking feed"
               >
                 <List
                   dataSource={recentBookings}
-                  locale={{ emptyText: 'Chưa có booking nào hiển thị.' }}
+                  locale={{ emptyText: 'No bookings to display.' }}
                   renderItem={(item: BookingDto) => {
                     const route = buildRouteDescriptor(
                       airportMap[item.departureAirportId],
