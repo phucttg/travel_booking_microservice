@@ -19,9 +19,9 @@ const topupStatusTone: Record<WalletTopupRequestStatus, 'success' | 'warning' | 
 };
 
 const topupStatusLabel: Record<WalletTopupRequestStatus, string> = {
-  [WalletTopupRequestStatus.PENDING]: 'Chờ duyệt',
-  [WalletTopupRequestStatus.APPROVED]: 'Đã duyệt',
-  [WalletTopupRequestStatus.REJECTED]: 'Đã từ chối'
+  [WalletTopupRequestStatus.PENDING]: 'Pending',
+  [WalletTopupRequestStatus.APPROVED]: 'Approved',
+  [WalletTopupRequestStatus.REJECTED]: 'Rejected'
 };
 
 export const WalletPage = () => {
@@ -61,8 +61,8 @@ export const WalletPage = () => {
     <>
       <PageHeader
         eyebrow="Wallet"
-        title="Ví của tôi"
-        subtitle="Số dư ví bắt đầu từ 0. Tạo yêu cầu nạp ví và chờ admin duyệt thủ công."
+        title="My Wallet"
+        subtitle="Your wallet balance starts at 0. Create a top-up request and wait for manual admin approval."
         onBack={() => navigate('/dashboard')}
       />
 
@@ -70,9 +70,9 @@ export const WalletPage = () => {
         <Alert
           type="error"
           showIcon
-          message="Không thể tải dữ liệu ví"
+          message="Unable to load wallet data"
           description={
-            walletDataErrorDescription || 'Dữ liệu trả về từ hệ thống không đúng định dạng mong đợi. Vui lòng thử lại.'
+            walletDataErrorDescription || 'The system returned data in an unexpected format. Please try again.'
           }
           style={{ marginBottom: 16 }}
         />
@@ -80,55 +80,55 @@ export const WalletPage = () => {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={10}>
-          <SectionCard title="Số dư ví" subtitle="Số tiền khả dụng để thanh toán booking">
+          <SectionCard title="Wallet Balance" subtitle="Available balance for booking payments">
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Text style={{ fontSize: 32, fontWeight: 800 }}>
                 {formatCurrency(walletQuery.data?.balance || 0, walletQuery.data?.currency || 'VND')}
               </Text>
-              <Text type="secondary">{`Yêu cầu chờ duyệt: ${pendingCount}/3`}</Text>
+              <Text type="secondary">{`Pending requests: ${pendingCount}/3`}</Text>
               <Space wrap>
                 <Button onClick={() => walletQuery.refetch()} loading={walletQuery.isFetching}>
-                  Refresh số dư
+                  Refresh balance
                 </Button>
                 <Button onClick={() => myTopupsQuery.refetch()} loading={myTopupsQuery.isFetching}>
-                  Refresh yêu cầu
+                  Refresh requests
                 </Button>
               </Space>
             </Space>
           </SectionCard>
 
-          <SectionCard title="Tạo yêu cầu nạp ví" subtitle="Nhập thông tin chuyển khoản để admin đối soát">
+          <SectionCard title="Create top-up request" subtitle="Enter your bank transfer details for admin review">
             <Form<CreateWalletTopupRequest> layout="vertical" form={form} onFinish={handleSubmitTopupRequest}>
               <Form.Item
-                label="Số tiền nạp"
+                label="Top-up amount"
                 name="amount"
-                rules={[{ required: true, message: 'Vui lòng nhập số tiền nạp' }]}
+                rules={[{ required: true, message: 'Please enter the top-up amount' }]}
               >
-                <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="VD: 500000" />
+                <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="e.g. 500000" />
               </Form.Item>
 
               <Form.Item
-                label="Mã giao dịch ngân hàng (providerTxnId)"
+                label="Bank transaction ID (providerTxnId)"
                 name="providerTxnId"
-                rules={[{ required: true, message: 'Vui lòng nhập mã giao dịch' }]}
+                rules={[{ required: true, message: 'Please enter the transaction ID' }]}
               >
-                <Input placeholder="VD: VCB-20260320-0001" />
+                <Input placeholder="e.g. VCB-20260320-0001" />
               </Form.Item>
 
               <Form.Item
-                label="Nội dung chuyển khoản"
+                label="Transfer note"
                 name="transferContent"
-                rules={[{ required: true, message: 'Vui lòng nhập nội dung chuyển khoản' }]}
+                rules={[{ required: true, message: 'Please enter the transfer note' }]}
               >
-                <Input.TextArea rows={4} placeholder="VD: TOPUP USER NGUYEN VAN A" />
+                <Input.TextArea rows={4} placeholder="e.g. TOPUP USER NGUYEN VAN A" />
               </Form.Item>
 
               <Space wrap>
                 <Button type="primary" htmlType="submit" loading={createTopupMutation.isPending}>
-                  Gửi yêu cầu nạp ví
+                  Submit top-up request
                 </Button>
                 <Button onClick={() => form.resetFields()} disabled={createTopupMutation.isPending}>
-                  Xóa form
+                  Reset form
                 </Button>
               </Space>
             </Form>
@@ -136,13 +136,13 @@ export const WalletPage = () => {
         </Col>
 
         <Col xs={24} xl={14}>
-          <SectionCard title="Lịch sử yêu cầu nạp ví" subtitle="Theo dõi trạng thái duyệt và lý do từ chối (nếu có)">
+          <SectionCard title="Top-up request history" subtitle="Track approval status and rejection reason, if any">
             {pendingCount >= 3 && (
               <Alert
                 type="warning"
                 showIcon
-                message="Bạn đang có 3 yêu cầu chờ duyệt"
-                description="Vui lòng đợi admin xử lý bớt trước khi tạo yêu cầu mới."
+                message="You already have 3 pending requests"
+                description="Please wait for admin to review one or more requests before creating a new request."
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -164,13 +164,13 @@ export const WalletPage = () => {
                   )
                 },
                 {
-                  title: 'Số tiền',
+                  title: 'Amount',
                   dataIndex: 'amount',
                   key: 'amount',
                   render: (value: number, record) => <Text strong>{formatCurrency(value, record.currency)}</Text>
                 },
                 {
-                  title: 'Mã giao dịch',
+                  title: 'Transaction ID',
                   dataIndex: 'providerTxnId',
                   key: 'providerTxnId',
                   render: (value: string) => (
@@ -178,22 +178,22 @@ export const WalletPage = () => {
                   )
                 },
                 {
-                  title: 'Nội dung CK',
+                  title: 'Transfer Note',
                   dataIndex: 'transferContent',
                   key: 'transferContent'
                 },
                 {
-                  title: 'Thời điểm',
+                  title: 'Timestamps',
                   key: 'time',
                   render: (_, record) => (
                     <Space direction="vertical" size={4}>
-                      <Text type="secondary">{`Tạo lúc: ${formatDateTime(record.createdAt)}`}</Text>
-                      <Text type="secondary">{`Review lúc: ${formatDateTime(record.reviewedAt)}`}</Text>
+                      <Text type="secondary">{`Submitted: ${formatDateTime(record.createdAt)}`}</Text>
+                      <Text type="secondary">{`Reviewed: ${formatDateTime(record.reviewedAt)}`}</Text>
                     </Space>
                   )
                 },
                 {
-                  title: 'Ghi chú',
+                  title: 'Notes',
                   key: 'note',
                   render: (_, record) =>
                     record.rejectionReason ? <Text type="danger">{record.rejectionReason}</Text> : <Text type="secondary">-</Text>

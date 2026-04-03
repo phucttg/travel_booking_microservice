@@ -45,4 +45,18 @@ describe('Header', () => {
     expect(currentCrumb).toHaveClass('app-header__crumb--current');
     expect(document.querySelector('.app-header__breadcrumb')).toBeInTheDocument();
   });
+
+  it('renders wallet breadcrumb in English for /wallet', () => {
+    setAuthenticatedUser();
+    useUiStore.setState({
+      sidebarCollapsed: false,
+      mobileSidebarOpen: false
+    });
+
+    renderHeader('/wallet');
+
+    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    const currentCrumb = screen.getByText('My Wallet');
+    expect(currentCrumb).toHaveClass('app-header__crumb--current');
+  });
 });

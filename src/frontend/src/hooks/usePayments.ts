@@ -164,12 +164,12 @@ export const useCreateWalletTopupRequest = () => {
       return response.data;
     },
     onSuccess: () => {
-      message.success('Đã gửi yêu cầu nạp ví');
+      message.success('Top-up request submitted');
       queryClient.invalidateQueries({ queryKey: paymentKeys.myTopups });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error);
-      message.error(appError.message || 'Gửi yêu cầu nạp ví thất bại');
+      message.error(appError.message || 'Failed to submit top-up request');
     }
   });
 };

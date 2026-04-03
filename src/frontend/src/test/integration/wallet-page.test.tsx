@@ -58,13 +58,13 @@ describe('wallet page', () => {
     renderWithRoute(<WalletPage />, { route: '/wallet', path: '/wallet' });
 
     expect(await screen.findByText('0 ₫')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('VD: 500000'), '500000');
-    await user.type(screen.getByLabelText('Mã giao dịch ngân hàng (providerTxnId)'), 'VCB-500');
-    await user.type(screen.getByLabelText('Nội dung chuyển khoản'), 'TOPUP USER 42');
-    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nạp ví' }));
+    await user.type(screen.getByPlaceholderText('e.g. 500000'), '500000');
+    await user.type(screen.getByLabelText('Bank transaction ID (providerTxnId)'), 'VCB-500');
+    await user.type(screen.getByLabelText('Transfer note'), 'TOPUP USER 42');
+    await user.click(screen.getByRole('button', { name: 'Submit top-up request' }));
 
     expect(await screen.findByText('#1')).toBeInTheDocument();
-    expect(await screen.findByText('Chờ duyệt')).toBeInTheDocument();
+    expect(await screen.findByText('Pending')).toBeInTheDocument();
     },
     10000
   );
@@ -103,6 +103,7 @@ describe('wallet page', () => {
     renderWithRoute(<WalletPage />, { route: '/wallet', path: '/wallet' });
 
     expect(await screen.findByText('Nội dung chuyển khoản không hợp lệ')).toBeInTheDocument();
+    expect(screen.getByText('Rejected')).toBeInTheDocument();
   });
 
   it('shows friendly error when wallet endpoints return invalid payload shapes', async () => {
@@ -121,8 +122,8 @@ describe('wallet page', () => {
 
     renderWithRoute(<WalletPage />, { route: '/wallet', path: '/wallet' });
 
-    expect(await screen.findByText('Không thể tải dữ liệu ví')).toBeInTheDocument();
-    expect(await screen.findByText('Ví của tôi')).toBeInTheDocument();
-    expect(screen.getByText('Yêu cầu chờ duyệt: 0/3')).toBeInTheDocument();
+    expect(await screen.findByText('Unable to load wallet data')).toBeInTheDocument();
+    expect(await screen.findByText('My Wallet')).toBeInTheDocument();
+    expect(screen.getByText('Pending requests: 0/3')).toBeInTheDocument();
   });
 });
