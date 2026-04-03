@@ -88,21 +88,21 @@ export const BookingListPage = () => {
         sorter: true
       },
       {
-        title: 'Ngày bay',
+        title: 'Flight date',
         dataIndex: 'flightDate',
         key: 'flightDate',
         width: 140,
         render: (value: string | Date) => formatDateTime(value, 'DD/MM/YYYY')
       },
       {
-        title: 'Giá',
+        title: 'Fare',
         dataIndex: 'price',
         key: 'price',
         width: 140,
         render: (value: number, record) => <Text strong>{formatCurrency(value, record.currency)}</Text>
       },
       {
-        title: 'Trạng thái',
+        title: 'Status',
         dataIndex: 'bookingStatus',
         key: 'bookingStatus',
         width: 140,
@@ -111,7 +111,7 @@ export const BookingListPage = () => {
         )
       },
       {
-        title: 'Thanh toán',
+        title: 'Payment',
         key: 'payment',
         width: 220,
         render: (_, record) =>
@@ -133,14 +133,14 @@ export const BookingListPage = () => {
           )
       },
       {
-        title: 'Ngày đặt',
+        title: 'Booked at',
         dataIndex: 'createdAt',
         key: 'createdAt',
         width: 170,
         render: (value: string | Date) => formatDateTime(value)
       },
       {
-        title: 'Thao tác',
+        title: 'Actions',
         key: 'actions',
         width: 180,
         render: (_, record) => (
@@ -148,9 +148,9 @@ export const BookingListPage = () => {
             <Button icon={<EyeOutlined />} onClick={() => navigate(`/bookings/${record.id}`)} />
             {[BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED].includes(record.bookingStatus) && (
               <Popconfirm
-                title="Hủy booking này?"
-                okText="Hủy booking"
-                cancelText="Đóng"
+                title="Cancel this booking?"
+                okText="Cancel booking"
+                cancelText="Close"
                 onConfirm={async () => {
                   await cancelBookingMutation.mutateAsync(record.id);
                 }}
@@ -191,11 +191,11 @@ export const BookingListPage = () => {
     <>
       <PageHeader
         eyebrow="Booking ledger"
-        title="Danh sách booking"
+        title="Booking list"
         subtitle={
           isAdmin()
-            ? 'Booking activity across the current system feed, prioritized by business context thay vì ID trần.'
-            : 'Dữ liệu booking đang hiển thị theo những gì backend hiện tại trả về cho client.'
+            ? 'Booking activity across the current system feed, prioritized by business context instead of raw ID order.'
+            : 'Bookings are shown exactly as the current backend response returns them to this client.'
         }
         meta={formatQuerySyncLabel(lastUpdatedAt)}
       />
@@ -214,7 +214,7 @@ export const BookingListPage = () => {
         }
       >
         <SearchInput
-          placeholder="Tìm theo số chuyến bay"
+          placeholder="Search by flight number"
           value={params.searchTerm || ''}
           onSearch={(value) =>
             setParams((prev) => {

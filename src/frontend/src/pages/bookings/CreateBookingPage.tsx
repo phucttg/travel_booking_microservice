@@ -294,8 +294,8 @@ export const CreateBookingPage = () => {
     if (!targetBooking) {
       setResumeWarning({
         type: 'warning',
-        message: 'Không tìm thấy booking để nạp tiền',
-        description: 'Liên kết nạp tiền không hợp lệ hoặc booking đã bị xóa.'
+        message: 'Booking not found for payment',
+        description: 'This payment link is invalid or the booking has been removed.'
       });
       setResumeHandledBookingId(queryBookingId);
       return;
@@ -303,7 +303,7 @@ export const CreateBookingPage = () => {
 
     if (targetBooking.bookingStatus !== BookingStatus.PENDING_PAYMENT) {
       if (targetBooking.bookingStatus === BookingStatus.CONFIRMED) {
-        message.info(`Booking #${targetBooking.id} đã được xác nhận. Đang chuyển sang trang chi tiết.`);
+        message.info(`Booking #${targetBooking.id} is already confirmed. Redirecting to the detail page.`);
         setResumeHandledBookingId(queryBookingId);
         navigate(`/bookings/${targetBooking.id}`);
         return;
@@ -311,8 +311,8 @@ export const CreateBookingPage = () => {
 
       setResumeWarning({
         type: 'warning',
-        message: `Booking #${targetBooking.id} không ở trạng thái chờ thanh toán`,
-        description: 'Booking đã confirmed/expired/canceled nên không thể nạp tiền cho lệnh này.'
+        message: `Booking #${targetBooking.id} is not pending payment`,
+        description: 'This booking is already confirmed, expired, or canceled, so the payment flow cannot be resumed.'
       });
       setResumeHandledBookingId(queryBookingId);
       return;
@@ -321,8 +321,8 @@ export const CreateBookingPage = () => {
     if (!targetBooking.paymentId) {
       setResumeWarning({
         type: 'warning',
-        message: `Booking #${targetBooking.id} chưa có lệnh thanh toán`,
-        description: 'Booking này thiếu paymentId nên chưa thể vào bước nạp tiền.'
+        message: `Booking #${targetBooking.id} has no payment intent`,
+        description: 'This booking is missing a paymentId, so the payment step cannot be opened yet.'
       });
       setResumeHandledBookingId(queryBookingId);
       return;
@@ -331,8 +331,8 @@ export const CreateBookingPage = () => {
     if (!targetBooking.flightId) {
       setResumeWarning({
         type: 'warning',
-        message: `Booking #${targetBooking.id} thiếu thông tin chuyến bay`,
-        description: 'Không thể mở lại màn hình nạp tiền vì booking không có flightId hợp lệ.'
+        message: `Booking #${targetBooking.id} is missing flight information`,
+        description: 'The payment flow cannot reopen because this booking has no valid flightId.'
       });
       setResumeHandledBookingId(queryBookingId);
       return;
@@ -346,8 +346,8 @@ export const CreateBookingPage = () => {
     if (!targetPayment) {
       setResumeWarning({
         type: 'warning',
-        message: `Không tải được lệnh thanh toán của booking #${targetBooking.id}`,
-        description: 'Vui lòng thử lại sau hoặc liên hệ vận hành để kiểm tra payment intent.'
+        message: `Could not load the payment intent for booking #${targetBooking.id}`,
+        description: 'Please try again later or contact operations to inspect the payment intent.'
       });
       setResumeHandledBookingId(queryBookingId);
       return;
@@ -366,8 +366,8 @@ export const CreateBookingPage = () => {
     setResumeWarning(null);
     setInlineAlert({
       type: 'info',
-      message: `Đang nạp tiền cho booking #${targetBooking.id}`,
-      description: 'Bạn có thể thanh toán ngay bằng số dư ví nếu đủ tiền.'
+      message: `Loading payment for booking #${targetBooking.id}`,
+      description: 'You can pay immediately with your wallet balance if funds are available.'
     });
     setResumeHandledBookingId(queryBookingId);
   }, [
@@ -468,8 +468,8 @@ export const CreateBookingPage = () => {
     if (currentPayment.paymentStatus === PaymentStatus.EXPIRED) {
       setInlineAlert({
         type: 'warning',
-        message: 'Phiên thanh toán đã hết hạn',
-        description: 'Ghế sẽ được giải phóng và bạn cần tạo checkout mới nếu muốn tiếp tục.'
+        message: 'The payment session has expired',
+        description: 'The seat hold will be released, and you will need to create a new checkout to continue.'
       });
     }
   }, [currentPayment]);
@@ -527,8 +527,8 @@ export const CreateBookingPage = () => {
       setStep(3);
       setInlineAlert({
         type: 'info',
-        message: 'Giữ chỗ thành công',
-        description: 'Ghế đã được giữ và checkout đang chờ bạn hoàn tất thanh toán.'
+        message: 'Seat hold created',
+        description: 'Your seat is now held and the checkout is waiting for payment.'
       });
     } catch (error) {
       const appError = normalizeProblemError(error);
@@ -552,7 +552,7 @@ export const CreateBookingPage = () => {
         setSeatSelectionAlert({
           type: 'warning',
           message: businessMessage || PREMIUM_SEAT_SELECTION_REQUIRED_MESSAGE,
-          description: 'Vui lòng chọn một ghế Business hoặc First Class để tiếp tục và khóa đúng giá cuối cùng.'
+          description: 'Please choose a Business or First Class seat to continue and lock the final fare.'
         });
         return;
       }
@@ -562,7 +562,7 @@ export const CreateBookingPage = () => {
           existingBookingStatus === BookingStatus.CONFIRMED || existingPaymentStatus === PaymentStatus.SUCCEEDED;
 
         if (shouldOpenConfirmedBooking) {
-          message.info(`Booking #${existingBookingId} đã được xác nhận. Đang chuyển sang trang chi tiết.`);
+          message.info(`Booking #${existingBookingId} is already confirmed. Redirecting to the detail page.`);
           navigate(`/bookings/${existingBookingId}`);
           return;
         }
@@ -573,7 +573,7 @@ export const CreateBookingPage = () => {
           existingPaymentStatus === PaymentStatus.PROCESSING;
 
         if (shouldResumePendingBooking) {
-          message.info(`Đang mở lại phiên thanh toán của booking #${existingBookingId}.`);
+          message.info(`Reopening the payment session for booking #${existingBookingId}.`);
           navigate(`/bookings/create?bookingId=${existingBookingId}`);
           return;
         }
@@ -590,8 +590,8 @@ export const CreateBookingPage = () => {
     setSyncStartedAt(null);
     setInlineAlert({
       type: 'warning',
-      message: 'Xác nhận booking đang chậm',
-      description: 'Thanh toán đã thành công. Vui lòng vào chi tiết booking để theo dõi trạng thái mới nhất.'
+      message: 'Booking confirmation is delayed',
+      description: 'Payment succeeded. Please open the booking details page to track the latest status.'
     });
   }, []);
 
@@ -604,8 +604,8 @@ export const CreateBookingPage = () => {
     setSyncStartedAt(Date.now());
     setInlineAlert({
       type: 'info',
-      message: 'Đã thanh toán, đang xác nhận booking',
-      description: 'Hệ thống đang đồng bộ trạng thái xác nhận từ payment service. Vui lòng không rời trang.'
+      message: 'Payment received, confirming booking',
+      description: 'The system is syncing the confirmation status from the payment service. Please stay on this page.'
     });
   }, [isAwaitingBookingConfirm, postPaymentSyncState]);
 
@@ -676,8 +676,8 @@ export const CreateBookingPage = () => {
       window.history.pushState(null, '', window.location.href);
       setInlineAlert({
         type: 'info',
-        message: 'Đang đồng bộ booking, vui lòng chờ',
-        description: 'Hệ thống đang xác nhận booking vừa thanh toán.'
+        message: 'Syncing booking, please wait',
+        description: 'The system is confirming the booking after your payment.'
       });
     };
 
@@ -690,14 +690,14 @@ export const CreateBookingPage = () => {
   }, [isHardLocked]);
 
   const renderFlightSelection = () => (
-    <SectionCard title="Chọn chuyến bay" subtitle="Step 1 · Select a route with the right schedule and fare">
+    <SectionCard title="Select a flight" subtitle="Step 1 · Select a route with the right schedule and fare">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {selectedFlightId > 0 && selectedFlight && !selectedFlightIsBookable && (
           <Alert
             type="warning"
             showIcon
-            message="Chuyến bay từ deep link hiện không còn mở đặt vé"
-            description="Vui lòng chọn một chuyến bay khác có trạng thái Scheduled hoặc Delayed và chưa quá giờ khởi hành."
+            message="The deep-linked flight is no longer open for booking"
+            description="Please choose another flight that is Scheduled or Delayed and has not departed yet."
           />
         )}
 
@@ -718,13 +718,13 @@ export const CreateBookingPage = () => {
                   setStep(1);
                 }}
               >
-                {isFlightBookable(flight) ? 'Chọn chuyến' : 'Không thể đặt'}
+                {isFlightBookable(flight) ? 'Select flight' : 'Unavailable'}
               </Button>
             }
           />
         ))}
 
-        {!flightsQuery.isLoading && flights.length === 0 && <Empty description="Không có chuyến bay" />}
+        {!flightsQuery.isLoading && flights.length === 0 && <Empty description="No flights available" />}
 
         <Pagination
           current={flightsQuery.data?.page || 1}
@@ -740,20 +740,20 @@ export const CreateBookingPage = () => {
 
   const renderSeatSelection = () => {
     if (!selectedFlight) {
-      return <EmptyState title="Select a flight first" description="Vui lòng chọn chuyến bay ở bước trước." />;
+      return <EmptyState title="Select a flight first" description="Choose a flight in the previous step." />;
     }
 
     if (!selectedFlightIsBookable) {
       return (
-        <SectionCard title="Chọn ghế" subtitle="Step 2 · Flight is no longer bookable">
+        <SectionCard title="Select a seat" subtitle="Step 2 · Flight is no longer bookable">
           <Alert
             type="warning"
             showIcon
-            message="Chuyến bay này không còn mở đặt vé"
-            description="Quay lại bước trước để chọn chuyến bay hợp lệ."
+            message="This flight is no longer open for booking"
+            description="Return to the previous step and choose a valid flight."
           />
           <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setStep(0)}>Quay lại</Button>
+            <Button onClick={() => setStep(0)}>Back</Button>
           </Space>
         </SectionCard>
       );
@@ -768,19 +768,19 @@ export const CreateBookingPage = () => {
 
     return (
       <SectionCard
-        title="Chọn ghế"
+        title="Select a seat"
         subtitle={`Step 2 · ${selectedFlight.flightNumber} · ${route.compact} · ${formatDateLabel(selectedFlight.flightDate)}`}
       >
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           {!seats.length && !seatsQuery.isLoading && (
-            <Alert type="warning" showIcon message="Không có ghế trống cho chuyến bay này." />
+            <Alert type="warning" showIcon message="No seats are available for this flight." />
           )}
 
           <Alert
             type="info"
             showIcon
-            message="Có thể bỏ qua chọn ghế để auto-assign Economy"
-            description="Nếu không chọn ghế, hệ thống chỉ tự giữ chỗ Economy còn trống. Business và First Class phải được chọn thủ công."
+            message="You can skip seat selection and auto-assign Economy"
+            description="If you do not choose a seat, the system can only auto-hold an available Economy seat. Business and First Class must be selected manually."
           />
 
           {seatSelectionAlert && (
@@ -859,7 +859,7 @@ export const CreateBookingPage = () => {
                       type={selectedSeatNumber === seat.seatNumber ? 'primary' : 'default'}
                       onClick={() => setSelectedSeatNumber(seat.seatNumber)}
                     >
-                      {selectedSeatNumber === seat.seatNumber ? 'Đã chọn' : 'Chọn ghế'}
+                      {selectedSeatNumber === seat.seatNumber ? 'Selected' : 'Select seat'}
                     </Button>
                   </div>
                 </Card>
@@ -877,13 +877,13 @@ export const CreateBookingPage = () => {
           />
 
           <Space>
-            <Button onClick={() => setStep(0)}>Quay lại</Button>
+            <Button onClick={() => setStep(0)}>Back</Button>
             <Button
               type="primary"
               disabled={seats.length === 0 || !selectedFlightIsBookable}
               onClick={() => setStep(2)}
             >
-              Tiếp tục review
+              Continue to review
             </Button>
           </Space>
         </Space>
@@ -892,7 +892,7 @@ export const CreateBookingPage = () => {
   };
 
   const renderReviewStep = () => (
-    <SectionCard title="Xác nhận đặt vé" subtitle="Step 3 · Review passenger, seat and note before submit">
+    <SectionCard title="Review booking" subtitle="Step 3 · Review passenger, seat, and notes before submit">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Card className="app-surface" style={{ borderRadius: 20 }}>
           <Space direction="vertical" size={10} style={{ width: '100%' }}>
@@ -901,8 +901,8 @@ export const CreateBookingPage = () => {
               <Alert
                 type="info"
                 showIcon
-                message="Đang đồng bộ hồ sơ hành khách"
-                description="Hệ thống đang chờ passenger profile được đồng bộ từ identity service."
+                message="Syncing passenger profile"
+                description="The system is waiting for the passenger profile to sync from the identity service."
               />
             ) : passengerQuery.data ? (
               <Text>{`${passengerQuery.data.name} · Passport ${passengerQuery.data.passportNumber}`}</Text>
@@ -912,13 +912,13 @@ export const CreateBookingPage = () => {
                 showIcon
                 message={
                   passengerAppError?.status === 404
-                    ? 'Không tìm thấy passenger tương ứng user hiện tại'
-                    : passengerAppError?.message || 'Không thể tải hồ sơ hành khách hiện tại'
+                    ? 'No passenger profile was found for the current user'
+                    : passengerAppError?.message || 'Could not load the current passenger profile'
                 }
                 description={
                   passengerAppError?.status === 404
-                    ? 'Passenger được đồng bộ từ UserCreated event. Vui lòng thử lại sau ít giây nếu bạn vừa đăng ký.'
-                    : 'Vui lòng thử lại sau hoặc kiểm tra passenger service.'
+                    ? 'Passenger records are synced from the UserCreated event. Try again in a few seconds if you just registered.'
+                    : 'Please try again later or inspect the passenger service.'
                 }
               />
             )}
@@ -938,8 +938,8 @@ export const CreateBookingPage = () => {
               </Text>
               <Text type="secondary">
                 {selectedSeatSummary
-                  ? `Checkout sẽ khóa đúng giá của ghế ${selectedSeatSummary.seatNumber}.`
-                  : 'Final total sẽ được khóa sau khi ghế được gán. Business và First Class cần được chọn thủ công.'}
+                  ? `Checkout will lock the exact fare for seat ${selectedSeatSummary.seatNumber}.`
+                  : 'The final total will lock after seat assignment. Business and First Class require manual selection.'}
               </Text>
             </Space>
           </Card>
@@ -949,12 +949,12 @@ export const CreateBookingPage = () => {
           <Alert
             type="warning"
             showIcon
-            message="Bạn đã có booking đang hoạt động cho chuyến bay này"
+            message="You already have an active booking for this flight"
             description={
               <Space wrap>
-                <Text type="secondary">{`Booking #${duplicateBookingId} đang chờ xử lý hoặc đã confirmed.`}</Text>
+                <Text type="secondary">{`Booking #${duplicateBookingId} is still pending or already confirmed.`}</Text>
                 <Button type="link" onClick={() => navigate(`/bookings/${duplicateBookingId}`)}>
-                  Mở booking hiện có
+                  Open existing booking
                 </Button>
               </Space>
             }
@@ -964,21 +964,21 @@ export const CreateBookingPage = () => {
         <Card className="app-surface" style={{ borderRadius: 20 }} title="Notes">
           <TextArea
             rows={5}
-            placeholder="Ghi chú thêm cho booking..."
+            placeholder="Add booking notes..."
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
         </Card>
 
         <Space>
-          <Button onClick={() => setStep(1)}>Quay lại</Button>
+          <Button onClick={() => setStep(1)}>Back</Button>
           <Button
             type="primary"
             loading={createBookingMutation.isPending}
             disabled={isPassengerSyncing || !passengerQuery.data?.id || !selectedFlight || !selectedFlightIsBookable}
             onClick={handleSubmitBooking}
           >
-            Tiếp tục thanh toán ví
+            Continue to wallet payment
           </Button>
         </Space>
       </Space>
@@ -987,7 +987,7 @@ export const CreateBookingPage = () => {
 
   const renderPaymentStep = () => {
     if (!checkout) {
-      return <EmptyState title="Checkout missing" description="Không tìm thấy phiên checkout đang chờ thanh toán." />;
+      return <EmptyState title="Checkout missing" description="No pending checkout session was found." />;
     }
 
     const payment = currentPayment || checkout.payment;
@@ -1001,7 +1001,7 @@ export const CreateBookingPage = () => {
     const showTimeoutSafeExit = shouldFreezePaymentActions && isTimedOut;
 
     return (
-      <SectionCard title="Thanh toán" subtitle="Step 4 · Confirm the locked amount before the hold expires">
+      <SectionCard title="Payment" subtitle="Step 4 · Confirm the locked amount before the hold expires">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           {inlineAlert && (
             <Alert
@@ -1027,29 +1027,29 @@ export const CreateBookingPage = () => {
           <Card className="app-surface" style={{ borderRadius: 20 }}>
             <Space direction="vertical" size={10} style={{ width: '100%' }}>
               <Text strong>Payment window</Text>
-              <Text type="secondary">{`Hết hạn sau ${String(countdownMinutes).padStart(2, '0')}:${String(countdownSeconds).padStart(2, '0')}`}</Text>
+              <Text type="secondary">{`Expires in ${String(countdownMinutes).padStart(2, '0')}:${String(countdownSeconds).padStart(2, '0')}`}</Text>
               <Progress percent={paymentWindowProgress} showInfo={false} strokeColor="#1d4ed8" />
             </Space>
           </Card>
 
           <Card className="app-surface" style={{ borderRadius: 20 }}>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              <Text strong>Thanh toán bằng ví</Text>
-              <Text type="secondary">Booking sẽ được xác nhận ngay khi ví đủ tiền và thanh toán thành công.</Text>
+              <Text strong>Pay with wallet</Text>
+              <Text type="secondary">The booking will be confirmed as soon as your wallet payment succeeds.</Text>
               <Space direction="vertical" size={6} style={{ width: '100%' }}>
                 <Text>
                   {isWalletLoading
-                    ? 'Đang tải số dư ví...'
-                    : `Số dư ví hiện tại: ${formatCurrency(walletBalance || 0, walletCurrency)}`}
+                    ? 'Loading wallet balance...'
+                    : `Current wallet balance: ${formatCurrency(walletBalance || 0, walletCurrency)}`}
                 </Text>
-                <Text>{`Số tiền cần thanh toán: ${formatCurrency(payment.amount, payment.currency)}`}</Text>
+                <Text>{`Amount due: ${formatCurrency(payment.amount, payment.currency)}`}</Text>
                 <StatusPill
                   label={
                     isWalletLoading
-                      ? 'Đang tải ví'
+                      ? 'Loading wallet'
                       : isWalletSufficient
-                        ? 'Ví đủ tiền'
-                        : 'Ví không đủ tiền'
+                        ? 'Wallet funded'
+                        : 'Wallet insufficient'
                   }
                   tone={isWalletLoading ? 'neutral' : isWalletSufficient ? 'success' : 'warning'}
                   subtle
@@ -1059,16 +1059,16 @@ export const CreateBookingPage = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message="Không tải được số dư ví hiện tại"
-                  description="Vui lòng refresh ví để kiểm tra lại số dư trước khi thanh toán."
+                  message="Could not load the current wallet balance"
+                  description="Refresh the wallet balance before paying."
                 />
               )}
               {!shouldFreezePaymentActions && isWalletSufficient === false && (
                 <Alert
                   type="warning"
                   showIcon
-                  message="Số dư ví không đủ để thanh toán booking này"
-                  description="Vui lòng nạp thêm ví trước khi thanh toán."
+                  message="The wallet balance is insufficient for this booking"
+                  description="Top up your wallet before paying."
                 />
               )}
             </Space>
@@ -1077,7 +1077,7 @@ export const CreateBookingPage = () => {
           {showTimeoutSafeExit ? (
             <Space wrap>
               <Button type="primary" onClick={() => navigate(`/bookings/${checkout.booking.id}`)}>
-                Về chi tiết booking
+                Go to booking details
               </Button>
             </Space>
           ) : shouldFreezePaymentActions ? null : (
@@ -1092,14 +1092,14 @@ export const CreateBookingPage = () => {
                   setStep(2);
                 }}
               >
-                {isResumedCheckout ? 'Về chi tiết booking' : 'Quay lại review'}
+                {isResumedCheckout ? 'Go to booking details' : 'Back to review'}
               </Button>
               <Button onClick={() => walletQuery.refetch()} loading={walletQuery.isFetching}>
-                Refresh ví
+                Refresh wallet
               </Button>
               {isWalletSufficient === false ? (
                 <Button type="primary" onClick={() => navigate('/wallet')}>
-                  Nạp ví
+                  Top up wallet
                 </Button>
               ) : (
                 <Button
@@ -1114,17 +1114,17 @@ export const CreateBookingPage = () => {
                     await payBookingWithWalletMutation.mutateAsync({ paymentId: payment.id });
                     setInlineAlert({
                       type: 'info',
-                      message: 'Thanh toán ví thành công, đang đồng bộ booking',
-                      description: 'Hệ thống đang cập nhật trạng thái xác nhận booking.'
+                      message: 'Wallet payment succeeded, syncing booking',
+                      description: 'The system is updating the booking confirmation status.'
                     });
                     await paymentQuery.refetch();
                   }}
                 >
-                  Thanh toán bằng ví
+                  Pay with wallet
                 </Button>
               )}
               <Button onClick={() => paymentQuery.refetch()} disabled={!checkout.payment.id}>
-                Kiểm tra lại payment
+                Recheck payment
               </Button>
             </Space>
           )}
@@ -1135,7 +1135,7 @@ export const CreateBookingPage = () => {
 
   const renderSuccessStep = () => {
     if (!createdBooking) {
-      return <EmptyState title="Booking not found" description="Không tìm thấy booking vừa tạo." />;
+      return <EmptyState title="Booking not found" description="The newly created booking could not be found." />;
     }
 
     const route = buildRouteDescriptor(
@@ -1177,7 +1177,7 @@ export const CreateBookingPage = () => {
 
           <Space style={{ marginTop: 16 }}>
             <Button type="primary" size="large" onClick={() => navigate(`/bookings/${createdBooking.id}`)}>
-              Xem chi tiết booking
+              View booking details
             </Button>
             <Button
               size="large"
@@ -1192,7 +1192,7 @@ export const CreateBookingPage = () => {
                 setSyncStartedAt(null);
               }}
             >
-              Đặt thêm vé
+              Book another flight
             </Button>
           </Space>
         </SectionCard>
@@ -1204,8 +1204,8 @@ export const CreateBookingPage = () => {
     <>
       <PageHeader
         eyebrow={step === 4 ? 'Booking completed' : 'Checkout flow'}
-        title={step === 4 ? 'Đặt vé thành công' : 'Đặt vé mới'}
-        subtitle="Flow 5 bước với seat-aware pricing, pending payment state và boarding pass chỉ hiện sau khi payment thành công."
+        title={step === 4 ? 'Booking confirmed' : 'New booking'}
+        subtitle="A 5-step flow with seat-aware pricing, a pending payment state, and a boarding pass that appears only after successful payment."
         meta={selectedFlight ? `${selectedFlight.flightNumber} · ${formatDateLabel(selectedFlight.flightDate)}` : 'Select a flight to begin'}
       />
 
@@ -1213,11 +1213,11 @@ export const CreateBookingPage = () => {
         <Steps
           current={step}
           items={[
-            { title: 'Chọn chuyến bay', description: 'Route & schedule', icon: <RocketOutlined /> },
-            { title: 'Chọn ghế', description: 'Cabin & preference', icon: <TeamOutlined /> },
-            { title: 'Xác nhận', description: 'Review & note', icon: <FileSearchOutlined /> },
-            { title: 'Thanh toán', description: 'Locked amount', icon: <FileSearchOutlined /> },
-            { title: 'Hoàn tất', description: 'Boarding pass', icon: <CheckCircleOutlined /> }
+            { title: 'Select flight', description: 'Route & schedule', icon: <RocketOutlined /> },
+            { title: 'Select seat', description: 'Cabin & preference', icon: <TeamOutlined /> },
+            { title: 'Review', description: 'Review & note', icon: <FileSearchOutlined /> },
+            { title: 'Payment', description: 'Locked amount', icon: <FileSearchOutlined /> },
+            { title: 'Complete', description: 'Boarding pass', icon: <CheckCircleOutlined /> }
           ]}
         />
       </SectionCard>
@@ -1277,7 +1277,7 @@ export const CreateBookingPage = () => {
               ) : (
                 <EmptyState
                   title="Awaiting selection"
-                  description="Chọn chuyến bay ở bước đầu để xem summary checkout."
+                  description="Choose a flight in the first step to see the checkout summary."
                 />
               )}
             </div>
@@ -1300,7 +1300,7 @@ export const CreateBookingPage = () => {
           }}
         >
           <Card className="app-surface" style={{ borderRadius: 16, maxWidth: 420 }}>
-            <Text strong>Đang đồng bộ booking, vui lòng chờ</Text>
+            <Text strong>Syncing booking, please wait</Text>
           </Card>
         </div>
       )}

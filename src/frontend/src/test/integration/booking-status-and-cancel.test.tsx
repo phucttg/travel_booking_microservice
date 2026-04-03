@@ -68,7 +68,7 @@ describe('booking status and cancellation flows', () => {
       expect(cancelButton).not.toBeNull();
 
       await user.click(cancelButton as HTMLButtonElement);
-      await user.click(await screen.findByRole('button', { name: 'Hủy booking' }));
+      await user.click(await screen.findByRole('button', { name: 'Cancel booking' }));
 
       expect((await screen.findAllByText('Canceled')).length).toBeGreaterThanOrEqual(2);
       expect(document.querySelector('.ant-table .ant-btn-dangerous')).toBeNull();

@@ -184,10 +184,10 @@ describe('create booking flow', () => {
         path: '/bookings/create'
       });
 
-      expect(await screen.findByText('Chuyến bay từ deep link hiện không còn mở đặt vé')).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Chọn chuyến bay' })).toBeInTheDocument();
-      expect(screen.queryByRole('heading', { name: 'Chọn ghế' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Không thể đặt' })).toBeDisabled();
+      expect(await screen.findByText('The deep-linked flight is no longer open for booking')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Select a flight' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Select a seat' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Unavailable' })).toBeDisabled();
       expect(requestCounts.flightById).toBe(0);
       expect(requestCounts.seatInventory).toBe(0);
       expect(requestCounts.walletMe).toBe(0);
@@ -221,7 +221,7 @@ describe('create booking flow', () => {
 
     expect(await screen.findByText('VN123')).toBeInTheDocument();
     expect(screen.getByText('VN002')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Không thể đặt' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Unavailable' })).toBeDisabled();
   });
 
   it(
@@ -303,10 +303,10 @@ describe('create booking flow', () => {
         path: '/bookings/create'
       });
 
-      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: 'Select flight' }));
       await user.click(await screen.findByRole('button', { name: '1A' }));
-      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
-      await user.click(await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+      await user.click(screen.getByRole('button', { name: 'Continue to review' }));
+      await user.click(await screen.findByRole('button', { name: 'Continue to wallet payment' }));
 
       await waitFor(() => {
         expect(submittedPayloads).toEqual([
@@ -320,14 +320,14 @@ describe('create booking flow', () => {
 
       expect(await screen.findByText('Locked total')).toBeInTheDocument();
 
-      await user.click(screen.getByRole('button', { name: 'Thanh toán bằng ví' }));
+      await user.click(screen.getByRole('button', { name: 'Pay with wallet' }));
 
-      expect(await screen.findByText('Đã thanh toán, đang xác nhận booking')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Quay lại review' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Refresh ví' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Nạp ví' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Thanh toán bằng ví' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Kiểm tra lại payment' })).not.toBeInTheDocument();
+      expect(await screen.findByText('Payment received, confirming booking')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Back to review' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Refresh wallet' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Top up wallet' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Pay with wallet' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Recheck payment' })).not.toBeInTheDocument();
 
       expect(await screen.findByText('Booking #99', undefined, { timeout: 10000 })).toBeInTheDocument();
       expect(bookingSyncCalls).toBeGreaterThanOrEqual(4);
@@ -399,31 +399,31 @@ describe('create booking flow', () => {
         path: '/bookings/create'
       });
 
-      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: 'Select flight' }));
       await user.click(await screen.findByRole('button', { name: '1A' }));
-      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
-      await user.click(await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+      await user.click(screen.getByRole('button', { name: 'Continue to review' }));
+      await user.click(await screen.findByRole('button', { name: 'Continue to wallet payment' }));
 
       vi.useFakeTimers();
       act(() => {
-        fireEvent.click(screen.getByRole('button', { name: 'Thanh toán bằng ví' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Pay with wallet' }));
       });
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(screen.getByText('Đã thanh toán, đang xác nhận booking')).toBeInTheDocument();
+      expect(screen.getByText('Payment received, confirming booking')).toBeInTheDocument();
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(46000);
         await vi.advanceTimersByTimeAsync(0);
       });
 
-      expect(screen.getByText('Xác nhận booking đang chậm')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Về chi tiết booking' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Quay lại review' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Refresh ví' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Thanh toán bằng ví' })).not.toBeInTheDocument();
+      expect(screen.getByText('Booking confirmation is delayed')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Go to booking details' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Back to review' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Refresh wallet' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Pay with wallet' })).not.toBeInTheDocument();
       expect(screen.queryByText('Booking not found')).not.toBeInTheDocument();
     },
     20000
@@ -494,12 +494,12 @@ describe('create booking flow', () => {
         path: '/bookings/create'
       });
 
-      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: 'Select flight' }));
       await user.click(await screen.findByRole('button', { name: '1A' }));
-      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
-      await user.click(await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' }));
-      await user.click(await screen.findByRole('button', { name: 'Thanh toán bằng ví' }));
-      expect(await screen.findByText('Đang đồng bộ booking, vui lòng chờ')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Continue to review' }));
+      await user.click(await screen.findByRole('button', { name: 'Continue to wallet payment' }));
+      await user.click(await screen.findByRole('button', { name: 'Pay with wallet' }));
+      expect(await screen.findByText('Syncing booking, please wait')).toBeInTheDocument();
 
       const callsBeforePop = pushStateSpy.mock.calls.length;
       act(() => {
@@ -565,17 +565,17 @@ describe('create booking flow', () => {
 
     expect((await screen.findAllByText('Base fare')).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: 'Chọn chuyến' }));
-    expect(await screen.findByText('Có thể bỏ qua chọn ghế để auto-assign Economy')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Select flight' }));
+    expect(await screen.findByText('You can skip seat selection and auto-assign Economy')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to review' }));
 
     expect((await screen.findAllByText('Base fare')).length).toBeGreaterThan(0);
     expect(
-      screen.getByText('Final total sẽ được khóa sau khi ghế được gán. Business và First Class cần được chọn thủ công.')
+      screen.getByText('The final total will lock after seat assignment. Business and First Class require manual selection.')
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to wallet payment' }));
 
     await waitFor(() => {
       expect(submittedPayloads).toEqual([
@@ -629,9 +629,9 @@ describe('create booking flow', () => {
       path: '/bookings/create'
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
-    await user.click(await screen.findByRole('button', { name: 'Tiếp tục review' }));
-    const submitButton = await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' });
+    await user.click(await screen.findByRole('button', { name: 'Select flight' }));
+    await user.click(await screen.findByRole('button', { name: 'Continue to review' }));
+    const submitButton = await screen.findByRole('button', { name: 'Continue to wallet payment' });
     await waitFor(() => expect(submitButton).toBeEnabled());
     await user.click(submitButton);
     await waitFor(() => {
@@ -644,10 +644,10 @@ describe('create booking flow', () => {
     });
 
     await waitFor(() => {
-      expect(document.body).toHaveTextContent('Có thể bỏ qua chọn ghế để auto-assign Economy');
+      expect(document.body).toHaveTextContent('You can skip seat selection and auto-assign Economy');
       expect(document.body).toHaveTextContent('Economy seats are sold out. Please select a premium seat to continue.');
       expect(document.body).toHaveTextContent(
-        'Vui lòng chọn một ghế Business hoặc First Class để tiếp tục và khóa đúng giá cuối cùng.'
+        'Please choose a Business or First Class seat to continue and lock the final fare.'
       );
     });
     expect(messageErrorSpy).not.toHaveBeenCalled();
@@ -703,16 +703,16 @@ describe('create booking flow', () => {
       path: '/bookings/create'
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+    await user.click(await screen.findByRole('button', { name: 'Select flight' }));
     await user.click(await screen.findByRole('button', { name: '1A' }));
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to review' }));
 
     expect(requestCounts.walletMe).toBe(0);
     expect((await screen.findAllByText('Selected fare')).length).toBeGreaterThan(0);
-    expect(screen.getByText('Checkout sẽ khóa đúng giá của ghế 1A.')).toBeInTheDocument();
+    expect(screen.getByText('Checkout will lock the exact fare for seat 1A.')).toBeInTheDocument();
     expect(screen.getAllByText(toCurrencyRegex(selectedSeat.price, selectedSeat.currency)).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to wallet payment' }));
 
     await waitFor(() => {
       expect(submittedPayloads).toEqual([
@@ -746,11 +746,11 @@ describe('create booking flow', () => {
       path: '/bookings/create'
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+    await user.click(await screen.findByRole('button', { name: 'Select flight' }));
 
-    expect(await screen.findByText('Không có ghế trống cho chuyến bay này.')).toBeInTheDocument();
-    expect(screen.getByText('Có thể bỏ qua chọn ghế để auto-assign Economy')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tiếp tục review' })).toBeDisabled();
+    expect(await screen.findByText('No seats are available for this flight.')).toBeInTheDocument();
+    expect(screen.getByText('You can skip seat selection and auto-assign Economy')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue to review' })).toBeDisabled();
   });
 
   it('redirects to existing confirmed booking when create returns ACTIVE_BOOKING_EXISTS', async () => {
@@ -789,10 +789,10 @@ describe('create booking flow', () => {
 
     renderCreateBookingWithLocationProbe('/bookings/create');
 
-    await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+    await user.click(await screen.findByRole('button', { name: 'Select flight' }));
     await user.click(await screen.findByRole('button', { name: '1A' }));
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
-    await user.click(await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to review' }));
+    await user.click(await screen.findByRole('button', { name: 'Continue to wallet payment' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('location-probe')).toHaveTextContent('/bookings/62');
@@ -858,15 +858,15 @@ describe('create booking flow', () => {
 
     renderCreateBookingWithLocationProbe('/bookings/create');
 
-    await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+    await user.click(await screen.findByRole('button', { name: 'Select flight' }));
     await user.click(await screen.findByRole('button', { name: '1A' }));
-    await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
-    await user.click(await screen.findByRole('button', { name: 'Tiếp tục thanh toán ví' }));
+    await user.click(screen.getByRole('button', { name: 'Continue to review' }));
+    await user.click(await screen.findByRole('button', { name: 'Continue to wallet payment' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('location-probe')).toHaveTextContent('/bookings/create?bookingId=63');
-      expect(screen.getByText('Đang nạp tiền cho booking #63')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Thanh toán bằng ví' })).toBeInTheDocument();
+      expect(screen.getByText('Loading payment for booking #63')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Pay with wallet' })).toBeInTheDocument();
     }, { timeout: 10000 });
 
     expect(createAttempts).toBe(1);
@@ -922,11 +922,11 @@ describe('create booking flow', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Đang nạp tiền cho booking #55')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Thanh toán bằng ví' })).toBeInTheDocument();
+      expect(screen.getByText('Loading payment for booking #55')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Pay with wallet' })).toBeInTheDocument();
     }, { timeout: 10000 });
 
-    expect(screen.queryByRole('heading', { name: 'Chọn chuyến bay' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Select a flight' })).not.toBeInTheDocument();
     expect((await screen.findAllByText('Selected fare')).length).toBeGreaterThan(0);
     expect(requestCounts.flightById).toBe(0);
     expect(requestCounts.seatInventory).toBe(0);
@@ -958,7 +958,7 @@ describe('create booking flow', () => {
       expect(screen.getByTestId('location-probe')).toHaveTextContent('/bookings/56');
     });
 
-    expect(screen.queryByRole('button', { name: 'Thanh toán bằng ví' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pay with wallet' })).not.toBeInTheDocument();
   });
 
   it(
@@ -988,17 +988,17 @@ describe('create booking flow', () => {
 
       renderCreateBookingWithRetryClient();
 
-      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: 'Select flight' }));
       await user.click(await screen.findByRole('button', { name: '1A' }));
-      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+      await user.click(screen.getByRole('button', { name: 'Continue to review' }));
 
-      expect(await screen.findByText('Đang đồng bộ hồ sơ hành khách')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeDisabled();
+      expect(await screen.findByText('Syncing passenger profile')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Continue to wallet payment' })).toBeDisabled();
 
       await waitFor(() => {
         expect(passengerAttempts).toBe(3);
         expect(screen.getByText('Nguyen Van A · Passport B1234567')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Continue to wallet payment' })).toBeEnabled();
       }, { timeout: 5000 });
     },
     10000
@@ -1026,18 +1026,18 @@ describe('create booking flow', () => {
 
       renderCreateBookingWithRetryClient();
 
-      await user.click(await screen.findByRole('button', { name: 'Chọn chuyến' }));
+      await user.click(await screen.findByRole('button', { name: 'Select flight' }));
       await user.click(await screen.findByRole('button', { name: '1A' }));
-      await user.click(screen.getByRole('button', { name: 'Tiếp tục review' }));
+      await user.click(screen.getByRole('button', { name: 'Continue to review' }));
 
-      expect(await screen.findByText('Đang đồng bộ hồ sơ hành khách')).toBeInTheDocument();
+      expect(await screen.findByText('Syncing passenger profile')).toBeInTheDocument();
 
       await waitFor(() => {
         expect(passengerAttempts).toBe(6);
-        expect(screen.getByText('Không tìm thấy passenger tương ứng user hiện tại')).toBeInTheDocument();
+        expect(screen.getByText('No passenger profile was found for the current user')).toBeInTheDocument();
       }, { timeout: 8000 });
 
-      expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán ví' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Continue to wallet payment' })).toBeDisabled();
     },
     15000
   );

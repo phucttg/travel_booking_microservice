@@ -30,7 +30,7 @@ const routeLabelMap: Record<string, string> = {
   passengers: 'Hành khách',
   payments: 'Thanh toán',
   wallet: 'Ví',
-  bookings: 'Đặt vé',
+  bookings: 'Bookings',
   reconcile: 'Duyệt nạp ví',
   login: 'Đăng nhập'
 };
