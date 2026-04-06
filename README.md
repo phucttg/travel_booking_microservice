@@ -31,7 +31,7 @@ Supported system capabilities in the codebase include:
 - Microservices architecture with dedicated services for identity, flight, passenger, booking, payment, and frontend
 - Public cloud deployment with custom domain access
 - Event-driven workflows over RabbitMQ for payment and passenger-sync scenarios
-- Service-to-service communication using REST plus internal service discovery
+- Service-to-service communication using REST plus stable internal service-name addressing across containers and deployed services
 - Centralized cloud image delivery through Amazon ECR
 - GitHub Actions CI/CD pipeline for build, release, deployment, and smoke verification
 - Deployment-time smoke checks through the public URL
@@ -86,7 +86,7 @@ flowchart LR
 | --- | --- |
 | Frontend | React, Vite, TypeScript, nginx |
 | Backend | Node.js, NestJS, TypeScript, TypeORM |
-| Database | Amazon RDS PostgreSQL / PostgreSQL 16 |
+| Database | Amazon RDS PostgreSQL |
 | Messaging | RabbitMQ (AMQP 0-9-1) |
 | Rate limiting | Redis (`ioredis`) |
 | Containers | Docker, Docker Compose |
@@ -204,7 +204,7 @@ SMOKE_USER_PASSWORD="your-password" \
 bash deployments/scripts/api-smoke.sh
 ```
 
-The smoke scripts above are part of the repository and are also used by the staging deployment workflow. They validate public accessibility, authentication readiness, and basic end-to-end operational health.
+The smoke scripts above are part of the repository and are also used by the staging deployment workflow. They validate public accessibility, readiness checks, authentication readiness, and basic deployed-stack health through the public URL.
 
 ## Evidence Screenshots
 
