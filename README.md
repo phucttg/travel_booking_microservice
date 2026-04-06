@@ -208,18 +208,13 @@ The smoke scripts above are part of the repository and are also used by the stag
 
 ## Evidence Screenshots
 
-Screenshot slots are stored under [docs/evidence/](docs/evidence/README.md). Replace the placeholder SVG files with final captured screenshots before submission if higher-fidelity evidence is required.
+The full screenshot gallery is documented in [docs/evidence/README.md](docs/evidence/README.md). It includes:
 
-- [Public GitHub repository root](docs/evidence/01-github-repo-public.svg) - public repository visibility and top-level structure
-- [Live login page on custom domain](docs/evidence/02-live-login-page.svg) - public access through the deployed frontend
-- [Name.com DNS mapping](docs/evidence/03-namecom-dns-mapping.svg) - custom DNS configuration pointing to CloudFront
-- [CloudFront alternate domains](docs/evidence/04-cloudfront-alt-domains.svg) - CloudFront distribution with custom domain bindings
-- [CloudFront origin to ALB](docs/evidence/05-cloudfront-origin-alb.svg) - public entry flow through the frontend ALB
-- [GitHub Actions success run](docs/evidence/06-github-actions-success.svg) - CI/CD workflow evidence
-- [ECS services healthy](docs/evidence/07-ecs-services-healthy.svg) - ECS/Fargate runtime health
-- [ECR repositories](docs/evidence/08-ecr-repositories.svg) - deployed container image repositories
-- [RDS instance](docs/evidence/09-rds-instance.svg) - managed database evidence
-- [Authenticated dashboard or booking page](docs/evidence/10-dashboard-or-booking-page.svg) - post-login application state
+- public GitHub repository and live login page
+- Name.com DNS, CloudFront domain binding, ALB origin, and CloudFront security view
+- multiple GitHub Actions success screenshots
+- ECS runtime health, ECR repositories, and RDS instance evidence
+- authenticated post-login application screens
 
 ## Limitations and Scope Statement
 
@@ -227,4 +222,3 @@ Screenshot slots are stored under [docs/evidence/](docs/evidence/README.md). Rep
 - Istio and Terraform are not included in this submission.
 - Redis is included and used in the running system; Kafka is not used because RabbitMQ is the implemented message broker for asynchronous workflows in this codebase.
 - The submission prioritizes a working public cloud deployment, CI/CD evidence, and documented operational verification.
-
