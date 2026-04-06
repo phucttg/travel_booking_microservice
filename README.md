@@ -1,6 +1,5 @@
 # CLOUD-NATIVE TRAVEL BOOKING MICROSERVICE
 
-**Student:** Truong Tran Gia Phuc - 23080430  
 **Live Demo:** [https://www.phuctruongtrangiaa.app/login](https://www.phuctruongtrangiaa.app/login)  
 **CloudFront Domain:** `dztx0tthix52u.cloudfront.net`  
 **Evidence Pack:** [docs/evidence/README.md](docs/evidence/README.md)
