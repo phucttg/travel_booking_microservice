@@ -127,6 +127,14 @@ bash deployments/scripts/dev-up.sh
 
 This command materializes missing local `.env.docker` files from committed templates and starts the Docker Compose stack.
 
+### Start the local stack with observability
+
+```bash
+bash deployments/scripts/dev-up.sh --observability
+```
+
+Use this when you want the local Grafana, Prometheus, Loki, Tempo, and OTEL collector services alongside the app stack.
+
 ### Start the local stack with RDS-style overlay
 
 ```bash
@@ -135,11 +143,23 @@ bash deployments/scripts/dev-up.sh --rds
 
 Use this when validating local containers against shared RDS-style environment files. The script creates missing `.env.rds` files from committed templates without overwriting existing files.
 
+### Start the local stack with both RDS-style overlay and observability
+
+```bash
+bash deployments/scripts/dev-up.sh --rds --observability
+```
+
 ### Helpful local commands
 
 ```bash
 docker compose -f deployments/docker-compose/docker-compose.yaml ps
 make wallet-proxy-smoke
+```
+
+If you previously ran the old all-in-one stack, Docker may keep removed observability containers as local orphans. Clean them up one time with:
+
+```bash
+docker compose -f deployments/docker-compose/docker-compose.yaml down --remove-orphans
 ```
 
 ## Cloud Deployment Summary

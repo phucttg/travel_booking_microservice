@@ -327,3 +327,5 @@ jobs:
         run: |
           bash deployments/scripts/dev-up.sh config > /dev/null
           bash deployments/scripts/dev-up.sh --rds config > /dev/null
+          bash deployments/scripts/dev-up.sh --observability config > /dev/null
+          bash deployments/scripts/dev-up.sh --rds --observability config > /dev/null

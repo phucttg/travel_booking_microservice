@@ -5,9 +5,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/deployments/docker-compose/docker-compose.yaml"
 RDS_OVERLAY_FILE="$ROOT_DIR/deployments/docker-compose/docker-compose.dev-rds.troubleshooting.yaml"
+OBSERVABILITY_OVERLAY_FILE="$ROOT_DIR/deployments/docker-compose/docker-compose.observability.yaml"
 SERVICES=(identity flight passenger booking payment)
 
 use_rds=0
+use_observability=0
 generated_rds_files=0
 compose_args=()
 
@@ -15,6 +17,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --rds)
       use_rds=1
+      shift
+      ;;
+    --observability)
+      use_observability=1
       shift
       ;;
     --)
@@ -78,6 +84,10 @@ compose_cmd=(docker compose -f "$COMPOSE_FILE")
 
 if [[ "$use_rds" -eq 1 ]]; then
   compose_cmd+=(-f "$RDS_OVERLAY_FILE")
+fi
+
+if [[ "$use_observability" -eq 1 ]]; then
+  compose_cmd+=(-f "$OBSERVABILITY_OVERLAY_FILE")
 fi
 
 compose_cmd+=("${compose_args[@]}")
