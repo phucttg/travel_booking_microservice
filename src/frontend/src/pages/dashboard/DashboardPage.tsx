@@ -328,21 +328,25 @@ export const DashboardPage = () => {
   return (
     <>
       <PageHeader
-        eyebrow="Operations overview"
+        eyebrow={adminMode ? 'Operations overview' : 'Traveler overview'}
         title="Dashboard"
-        subtitle={`Hello, ${user?.name || 'Unknown'}. This workspace brings together activity from the identity, flight, passenger, and booking services.`}
-        meta="Balanced bilingual UI · VND pricing"
+        subtitle={
+          adminMode
+            ? `Hello, ${user?.name || 'Unknown'}. This workspace brings together activity from the identity, flight, passenger, and booking services.`
+            : `Hello, ${user?.name || 'Unknown'}. Browse flights, review your bookings, and manage your wallet from one place.`
+        }
+        meta={adminMode ? 'Balanced bilingual UI · VND pricing' : 'Traveler tools · VND pricing'}
       />
 
-      <QueryStatusStrip title="Module status" items={queryItems} lastUpdatedAt={lastUpdatedAt} />
+      {adminMode && <QueryStatusStrip title="Module status" items={queryItems} lastUpdatedAt={lastUpdatedAt} />}
 
       <EntityHero
         eyebrow={adminMode ? 'Admin workspace' : 'Traveler workspace'}
-        title={adminMode ? 'Booking operations at a glance' : 'Travel and booking workspace'}
+        title={adminMode ? 'Booking operations at a glance' : 'Your trips'}
         subtitle={
           adminMode
             ? 'Track inventory, booking activity, and flight movement in one view. No fake analytics; only signals currently available from the backend are shown.'
-            : 'Start your booking journey quickly: browse flights, create a new booking, and review recent transactions.'
+            : 'Start from flights first, then review bookings or open your wallet when you need to continue the journey.'
         }
         tags={
           <>
@@ -351,14 +355,25 @@ export const DashboardPage = () => {
           </>
         }
         extra={
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Button type="primary" size="large" onClick={() => navigate('/bookings/create')}>
-              Create booking
-            </Button>
-            <Button size="large" onClick={() => navigate('/flights')}>
-              Browse flights
-            </Button>
-          </Space>
+          adminMode ? (
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Button type="primary" size="large" onClick={() => navigate('/bookings/create')}>
+                Create booking
+              </Button>
+              <Button size="large" onClick={() => navigate('/flights')}>
+                Browse flights
+              </Button>
+            </Space>
+          ) : (
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Button type="primary" size="large" onClick={() => navigate('/flights')}>
+                Browse flights
+              </Button>
+              <Button size="large" onClick={() => navigate('/bookings')}>
+                View bookings
+              </Button>
+            </Space>
+          )
         }
       />
 
@@ -593,16 +608,16 @@ export const DashboardPage = () => {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={10}>
-              <SectionCard title="Quick actions" subtitle="Start the next step without leaving the dashboard">
+              <SectionCard title="Quick actions" subtitle="Common traveler actions without leaving the dashboard">
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <Button type="primary" size="large" block onClick={() => navigate('/bookings/create')}>
-                    Create booking
-                  </Button>
-                  <Button size="large" block onClick={() => navigate('/flights')}>
+                  <Button type="primary" size="large" block onClick={() => navigate('/flights')}>
                     Browse flights
                   </Button>
                   <Button size="large" block onClick={() => navigate('/bookings')}>
                     View bookings
+                  </Button>
+                  <Button size="large" block onClick={() => navigate('/wallet')}>
+                    My wallet
                   </Button>
                 </Space>
               </SectionCard>

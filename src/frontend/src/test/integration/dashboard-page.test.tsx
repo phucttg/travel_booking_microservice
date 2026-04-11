@@ -179,7 +179,15 @@ describe('dashboard page', () => {
 
     renderWithRoute(<DashboardPage />, { route: '/dashboard', path: '/dashboard' });
 
-    expect(await screen.findByText('Flights · Ready')).toBeInTheDocument();
+    expect(await screen.findByText('Traveler overview')).toBeInTheDocument();
+    expect(screen.queryByText('Operations overview')).not.toBeInTheDocument();
+    expect(screen.queryByText('Module status')).not.toBeInTheDocument();
+    expect(screen.getByText('Your trips')).toBeInTheDocument();
+    expect(screen.getByText('My recent bookings')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Browse flights' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'View bookings' })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'My wallet' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create booking' })).not.toBeInTheDocument();
     expect(await screen.findByText('Available flight records you can browse and book from here.')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
   });
