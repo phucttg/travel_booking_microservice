@@ -117,3 +117,7 @@ src/**/.env.development
 .idea/caches/build_file_checksums.ser
 
 *.tsbuildinfo
+
+
+.codex-rds-global-bundle.pem
+
