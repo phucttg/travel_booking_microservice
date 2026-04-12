@@ -29,8 +29,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <Result
           status="error"
-          title="Đã xảy ra lỗi"
-          subTitle="Workspace encountered an unexpected rendering error. Vui lòng thử tải lại trang."
+          title="Something went wrong"
+          subTitle="Workspace encountered an unexpected rendering error. Please try reloading the page."
           extra={
             <Button type="primary" onClick={this.handleReload}>
               Reload

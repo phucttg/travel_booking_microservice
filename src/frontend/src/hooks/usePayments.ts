@@ -203,14 +203,14 @@ export const useApproveWalletTopupRequest = () => {
       return response.data;
     },
     onSuccess: () => {
-      message.success('Đã duyệt yêu cầu nạp ví');
+      message.success('Wallet top-up request approved');
       queryClient.invalidateQueries({ queryKey: ['wallet', 'topups', 'admin'] });
       queryClient.invalidateQueries({ queryKey: paymentKeys.myTopups });
       queryClient.invalidateQueries({ queryKey: paymentKeys.walletMe });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error);
-      message.error(appError.message || 'Duyệt yêu cầu thất bại');
+      message.error(appError.message || 'Failed to approve the top-up request');
     }
   });
 };
@@ -224,13 +224,13 @@ export const useRejectWalletTopupRequest = () => {
       return response.data;
     },
     onSuccess: () => {
-      message.success('Đã từ chối yêu cầu nạp ví');
+      message.success('Wallet top-up request rejected');
       queryClient.invalidateQueries({ queryKey: ['wallet', 'topups', 'admin'] });
       queryClient.invalidateQueries({ queryKey: paymentKeys.myTopups });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error);
-      message.error(appError.message || 'Từ chối yêu cầu thất bại');
+      message.error(appError.message || 'Failed to reject the top-up request');
     }
   });
 };

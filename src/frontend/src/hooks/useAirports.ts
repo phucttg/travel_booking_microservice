@@ -40,16 +40,16 @@ export const useCreateAirport = () => {
       return response.data;
     },
     onSuccess: () => {
-      message.success('Tạo sân bay thành công');
+      message.success('Airport created successfully');
       queryClient.invalidateQueries({ queryKey: airportKeys.all });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error);
       if (appError.status === 409) {
-        message.error('Tên sân bay đã tồn tại');
+        message.error('Airport name already exists');
         return;
       }
-      message.error(appError.message || 'Tạo sân bay thất bại');
+      message.error(appError.message || 'Failed to create airport');
     }
   });
 };

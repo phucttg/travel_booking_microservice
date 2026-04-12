@@ -26,8 +26,8 @@ export const PassengerDetailPage = () => {
     <>
       <PageHeader
         eyebrow="Passenger profile"
-        title="Chi tiết hành khách"
-        subtitle="Passenger detail được tổ chức theo entity hero và grouped info cards."
+        title="Passenger details"
+        subtitle="Passenger details are organized with a hero summary and grouped information cards."
         onBack={() => navigate('/passengers')}
       />
 
@@ -46,9 +46,9 @@ export const PassengerDetailPage = () => {
               <SectionCard title="Passenger details" subtitle="Identity and document fields">
                 <Descriptions bordered column={1}>
                   <Descriptions.Item label="ID">{passenger.id}</Descriptions.Item>
-                  <Descriptions.Item label="Tên">{passenger.name}</Descriptions.Item>
-                  <Descriptions.Item label="Tuổi">{passenger.age}</Descriptions.Item>
-                  <Descriptions.Item label="Số hộ chiếu">{passenger.passportNumber}</Descriptions.Item>
+                  <Descriptions.Item label="Name">{passenger.name}</Descriptions.Item>
+                  <Descriptions.Item label="Age">{passenger.age}</Descriptions.Item>
+                  <Descriptions.Item label="Passport number">{passenger.passportNumber}</Descriptions.Item>
                 </Descriptions>
               </SectionCard>
             </Col>
@@ -56,11 +56,11 @@ export const PassengerDetailPage = () => {
               <SectionCard title="Profile audit" subtitle="Type and timestamps">
                 <Descriptions bordered column={1}>
                   <Descriptions.Item label="User link">{passenger.userId}</Descriptions.Item>
-                  <Descriptions.Item label="Loại hành khách">
+                  <Descriptions.Item label="Passenger type">
                     <StatusPill label={passengerTypeLabels[passenger.passengerType]} tone={getPassengerTone(passenger.passengerType)} subtle />
                   </Descriptions.Item>
-                  <Descriptions.Item label="Ngày tạo">{formatDateTime(passenger.createdAt)}</Descriptions.Item>
-                  <Descriptions.Item label="Ngày cập nhật">{formatDateTime(passenger.updatedAt)}</Descriptions.Item>
+                  <Descriptions.Item label="Created at">{formatDateTime(passenger.createdAt)}</Descriptions.Item>
+                  <Descriptions.Item label="Updated at">{formatDateTime(passenger.updatedAt)}</Descriptions.Item>
                 </Descriptions>
               </SectionCard>
             </Col>

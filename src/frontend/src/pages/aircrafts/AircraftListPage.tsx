@@ -19,7 +19,7 @@ export const AircraftListPage = () => {
 
   const columns: ColumnsType<AircraftDto> = [
     {
-      title: 'Máy bay',
+      title: 'Aircraft',
       key: 'aircraft',
       render: (_, record) => (
         <div style={{ display: 'grid', gap: 8, minWidth: 260 }}>
@@ -30,19 +30,19 @@ export const AircraftListPage = () => {
       )
     },
     {
-      title: 'Ngày tạo',
+      title: 'Created at',
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 170,
       render: (value: string) => formatDateTime(value)
     },
     {
-      title: 'Thao tác',
+      title: 'Actions',
       key: 'action',
       width: 110,
       render: () => (
         <Button icon={<EyeOutlined />} disabled>
-          Xem
+          View
         </Button>
       )
     }
@@ -52,12 +52,12 @@ export const AircraftListPage = () => {
     <>
       <PageHeader
         eyebrow="Fleet registry"
-        title="Quản lý máy bay"
-        subtitle="Aircraft list làm rõ tên tàu bay, model và năm sản xuất như một inventory registry."
+        title="Aircraft management"
+        subtitle="Review aircraft names, models, and manufacturing years in a fleet registry view."
         meta={formatQuerySyncLabel(lastUpdatedAt)}
         extra={
           <Button type="primary" icon={<PlusOutlined />} size="large" onClick={() => navigate('/aircrafts/create')}>
-            Tạo mới
+            Create aircraft
           </Button>
         }
       />

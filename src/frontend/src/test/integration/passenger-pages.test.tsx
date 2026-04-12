@@ -31,8 +31,10 @@ describe('passenger pages', () => {
 
     renderWithRoute(<PassengerListPage />, { route: '/passengers', path: '/passengers' });
 
+    expect(await screen.findByRole('heading', { name: 'Passenger list' })).toBeInTheDocument();
     expect(await screen.findByText('Baby Guest')).toBeInTheDocument();
     expect(screen.getByText('Baby')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search by name')).toBeInTheDocument();
   });
 
   it('renders passengerType in the passenger detail page', async () => {
@@ -49,6 +51,7 @@ describe('passenger pages', () => {
       path: '/passengers/:id'
     });
 
+    expect((await screen.findAllByText('Passenger details')).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText(/Passenger type Baby/)).toBeInTheDocument();
     expect(screen.getAllByText('Baby').length).toBeGreaterThanOrEqual(1);
   });

@@ -13,7 +13,7 @@ type EmptyStateProps = {
 export const EmptyState = ({
   icon,
   title = 'No data yet',
-  description = 'Không có dữ liệu',
+  description = 'No data available',
   action
 }: EmptyStateProps) => {
   return (

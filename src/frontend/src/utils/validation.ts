@@ -52,17 +52,17 @@ export const updateUserFormSchema = userBaseSchema.extend({
 export const airportFormSchema = z.object({
   code: z
     .string()
-    .min(2, 'Mã sân bay tối thiểu 2 ký tự')
+    .min(2, 'Airport code must be at least 2 characters')
     .transform((value) => value.toUpperCase()),
-  name: z.string().min(2, 'Tên sân bay tối thiểu 2 ký tự'),
-  address: z.string().min(1, 'Địa chỉ là bắt buộc')
+  name: z.string().min(2, 'Airport name must be at least 2 characters'),
+  address: z.string().min(1, 'Address is required')
 });
 
 export const aircraftFormSchema = z.object({
-  name: z.string().min(1, 'Tên máy bay là bắt buộc'),
-  model: z.string().min(1, 'Model là bắt buộc'),
+  name: z.string().min(1, 'Aircraft name is required'),
+  model: z.string().min(1, 'Model is required'),
   manufacturingYear: z
-    .number({ invalid_type_error: 'Năm sản xuất phải là số' })
+    .number({ invalid_type_error: 'Manufacturing year must be a number' })
     .min(1900)
     .max(new Date().getFullYear())
 });

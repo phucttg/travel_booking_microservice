@@ -48,7 +48,7 @@ describe('admin wallet topup inbox page', () => {
     );
 
     expect(await screen.findByText('Access Denied')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Duyệt yêu cầu nạp ví' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Review wallet top-up requests' })).not.toBeInTheDocument();
   });
 
   it('loads pending wallet topup requests and approves one request', async () => {
@@ -79,9 +79,9 @@ describe('admin wallet topup inbox page', () => {
     });
 
     expect(await screen.findByText('#11')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Duyệt' }));
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
 
-    expect(await screen.findByText('Đã duyệt')).toBeInTheDocument();
+    expect(await screen.findByText('Approved')).toBeInTheDocument();
   });
 
   it(
@@ -117,12 +117,12 @@ describe('admin wallet topup inbox page', () => {
     });
 
     expect(await screen.findByText('#12')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Từ chối' }));
-    await user.type(screen.getByLabelText('Lý do từ chối'), 'Nội dung chuyển khoản sai cú pháp');
-    await user.click(screen.getByRole('button', { name: 'Xác nhận từ chối' }));
+    await user.click(screen.getByRole('button', { name: 'Reject' }));
+    await user.type(screen.getByLabelText('Rejection reason'), 'Transfer note has invalid syntax');
+    await user.click(screen.getByRole('button', { name: 'Confirm rejection' }));
 
-    expect(await screen.findByText('Đã từ chối')).toBeInTheDocument();
-    expect(await screen.findByText('Lý do từ chối: Nội dung chuyển khoản sai cú pháp')).toBeInTheDocument();
+    expect(await screen.findByText('Rejected')).toBeInTheDocument();
+    expect(await screen.findByText('Rejection reason: Transfer note has invalid syntax')).toBeInTheDocument();
     },
     10000
   );

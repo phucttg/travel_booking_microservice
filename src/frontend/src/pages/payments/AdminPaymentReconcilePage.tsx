@@ -22,9 +22,9 @@ const topupStatusTone: Record<WalletTopupRequestStatus, 'success' | 'warning' | 
 };
 
 const topupStatusLabel: Record<WalletTopupRequestStatus, string> = {
-  [WalletTopupRequestStatus.PENDING]: 'Chờ duyệt',
-  [WalletTopupRequestStatus.APPROVED]: 'Đã duyệt',
-  [WalletTopupRequestStatus.REJECTED]: 'Đã từ chối'
+  [WalletTopupRequestStatus.PENDING]: 'Pending',
+  [WalletTopupRequestStatus.APPROVED]: 'Approved',
+  [WalletTopupRequestStatus.REJECTED]: 'Rejected'
 };
 
 type RejectFormValues = {
@@ -79,38 +79,38 @@ export const AdminPaymentReconcilePage = () => {
     <>
       <PageHeader
         eyebrow="Admin wallet ops"
-        title="Duyệt yêu cầu nạp ví"
-        subtitle="Inbox yêu cầu nạp ví từ user. Admin duyệt hoặc từ chối thủ công sau khi đối chiếu chuyển khoản."
+        title="Review wallet top-up requests"
+        subtitle="Review wallet top-up requests submitted by users and approve or reject them after checking the transfer details."
         onBack={() => navigate('/dashboard')}
       />
 
       <Row gutter={[16, 16]}>
         <Col xs={24}>
-          <SectionCard title="Bộ lọc yêu cầu nạp ví" subtitle="Theo dõi nhanh trạng thái inbox nạp tiền">
+          <SectionCard title="Top-up request filters" subtitle="Track the current status of the top-up review inbox.">
             <Space wrap size={[12, 12]}>
               <Select<WalletTopupRequestStatus | undefined>
                 allowClear
-                placeholder="Lọc theo trạng thái"
+                placeholder="Filter by status"
                 value={filterStatus}
                 onChange={(value) => setFilterStatus(value)}
                 style={{ minWidth: 220 }}
                 options={[
-                  { label: 'Chờ duyệt', value: WalletTopupRequestStatus.PENDING },
-                  { label: 'Đã duyệt', value: WalletTopupRequestStatus.APPROVED },
-                  { label: 'Đã từ chối', value: WalletTopupRequestStatus.REJECTED }
+                  { label: 'Pending', value: WalletTopupRequestStatus.PENDING },
+                  { label: 'Approved', value: WalletTopupRequestStatus.APPROVED },
+                  { label: 'Rejected', value: WalletTopupRequestStatus.REJECTED }
                 ]}
               />
               <Button onClick={() => topupRequestsQuery.refetch()} loading={topupRequestsQuery.isFetching}>
                 Refresh
               </Button>
-              <Text type="secondary">{`Tổng yêu cầu hiển thị: ${requests.length}`}</Text>
-              <Text type="secondary">{`Pending trong danh sách: ${pendingCount}`}</Text>
+              <Text type="secondary">{`Visible requests: ${requests.length}`}</Text>
+              <Text type="secondary">{`Pending in list: ${pendingCount}`}</Text>
             </Space>
           </SectionCard>
         </Col>
 
         <Col xs={24}>
-          <SectionCard title="Inbox yêu cầu nạp ví" subtitle="Duyệt đúng số tiền request hoặc từ chối kèm lý do">
+          <SectionCard title="Top-up request inbox" subtitle="Approve the requested amount or reject the request with a reason.">
             <Table<WalletTopupRequestDto>
               rowKey="id"
               loading={topupRequestsQuery.isFetching}
@@ -129,13 +129,13 @@ export const AdminPaymentReconcilePage = () => {
                   )
                 },
                 {
-                  title: 'Số tiền',
+                  title: 'Amount',
                   dataIndex: 'amount',
                   key: 'amount',
                   render: (value: number, record) => <Text strong>{formatCurrency(value, record.currency)}</Text>
                 },
                 {
-                  title: 'Mã giao dịch',
+                  title: 'Transaction code',
                   dataIndex: 'providerTxnId',
                   key: 'providerTxnId',
                   render: (value: string) => (
@@ -143,7 +143,7 @@ export const AdminPaymentReconcilePage = () => {
                   )
                 },
                 {
-                  title: 'Nội dung CK',
+                  title: 'Transfer note',
                   dataIndex: 'transferContent',
                   key: 'transferContent',
                   render: (value: string) => <Text>{value}</Text>
@@ -153,14 +153,14 @@ export const AdminPaymentReconcilePage = () => {
                   key: 'review',
                   render: (_, record) => (
                     <Space direction="vertical" size={4}>
-                      <Text type="secondary">{`Tạo lúc: ${formatDateTime(record.createdAt)}`}</Text>
-                      <Text type="secondary">{`Review lúc: ${formatDateTime(record.reviewedAt)}`}</Text>
-                      {record.rejectionReason ? <Text type="danger">{`Lý do từ chối: ${record.rejectionReason}`}</Text> : null}
+                      <Text type="secondary">{`Created at: ${formatDateTime(record.createdAt)}`}</Text>
+                      <Text type="secondary">{`Reviewed at: ${formatDateTime(record.reviewedAt)}`}</Text>
+                      {record.rejectionReason ? <Text type="danger">{`Rejection reason: ${record.rejectionReason}`}</Text> : null}
                     </Space>
                   )
                 },
                 {
-                  title: 'Thao tác',
+                  title: 'Actions',
                   key: 'actions',
                   render: (_, record) => (
                     <Space wrap>
@@ -172,7 +172,7 @@ export const AdminPaymentReconcilePage = () => {
                           await approveMutation.mutateAsync(record.id);
                         }}
                       >
-                        Duyệt
+                        Approve
                       </Button>
                       <Button
                         danger
@@ -180,7 +180,7 @@ export const AdminPaymentReconcilePage = () => {
                         loading={rejectMutation.isPending}
                         onClick={() => handleOpenRejectModal(record)}
                       >
-                        Từ chối
+                        Reject
                       </Button>
                     </Space>
                   )
@@ -192,21 +192,21 @@ export const AdminPaymentReconcilePage = () => {
       </Row>
 
       <Modal
-        title={selectedRejectRequest ? `Từ chối request #${selectedRejectRequest.id}` : 'Từ chối yêu cầu'}
+        title={selectedRejectRequest ? `Reject request #${selectedRejectRequest.id}` : 'Reject request'}
         open={rejectModalOpen}
         onCancel={handleCloseRejectModal}
         onOk={() => rejectForm.submit()}
-        okText="Xác nhận từ chối"
-        cancelText="Đóng"
+        okText="Confirm rejection"
+        cancelText="Close"
         confirmLoading={rejectMutation.isPending}
       >
         <Form<RejectFormValues> layout="vertical" form={rejectForm} onFinish={handleRejectRequest}>
           <Form.Item
-            label="Lý do từ chối"
+            label="Rejection reason"
             name="rejectionReason"
-            rules={[{ required: true, message: 'Vui lòng nhập lý do từ chối' }]}
+            rules={[{ required: true, message: 'Please enter a rejection reason' }]}
           >
-            <Input.TextArea rows={4} maxLength={500} placeholder="VD: Nội dung chuyển khoản không khớp" />
+            <Input.TextArea rows={4} maxLength={500} placeholder="Example: Transfer note does not match" />
           </Form.Item>
         </Form>
       </Modal>

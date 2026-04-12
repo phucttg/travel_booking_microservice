@@ -38,15 +38,15 @@ export const AirportFormPage = () => {
     <>
       <PageHeader
         eyebrow="Airport setup"
-        title="Tạo sân bay"
-        subtitle="Form được chia theo business section để airport code, name và address dễ rà soát hơn."
+        title="Create airport"
+        subtitle="The form is split into business sections so the airport code, name, and address are easier to review."
         onBack={() => navigate('/airports')}
       />
 
       <SectionCard title="Airport basics" subtitle="Registry fields used by the flight service">
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
           <FormSection title="Registry identity" description="Airport code will be normalized to uppercase for route displays.">
-            <Form.Item label="Mã sân bay" validateStatus={errors.code ? 'error' : undefined} help={errors.code?.message}>
+            <Form.Item label="Airport code" validateStatus={errors.code ? 'error' : undefined} help={errors.code?.message}>
               <Controller
                 name="code"
                 control={control}
@@ -55,14 +55,14 @@ export const AirportFormPage = () => {
                 )}
               />
             </Form.Item>
-            <Form.Item label="Tên sân bay" validateStatus={errors.name ? 'error' : undefined} help={errors.name?.message}>
+            <Form.Item label="Airport name" validateStatus={errors.name ? 'error' : undefined} help={errors.name?.message}>
               <Controller name="name" control={control} render={({ field }) => <Input {...field} />} />
             </Form.Item>
           </FormSection>
 
           <FormSection title="Location" description="Address is shown as supporting context in list and detail views.">
             <Form.Item
-              label="Địa chỉ"
+              label="Address"
               validateStatus={errors.address ? 'error' : undefined}
               help={errors.address?.message}
             >
@@ -72,9 +72,9 @@ export const AirportFormPage = () => {
 
           <FormActionsBar>
             <Space>
-              <Button onClick={() => navigate('/airports')}>Hủy</Button>
+              <Button onClick={() => navigate('/airports')}>Cancel</Button>
               <Button type="primary" htmlType="submit" loading={createMutation.isPending}>
-                Tạo mới
+                Create airport
               </Button>
             </Space>
           </FormActionsBar>

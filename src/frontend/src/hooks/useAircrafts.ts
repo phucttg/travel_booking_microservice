@@ -41,16 +41,16 @@ export const useCreateAircraft = () => {
       return response.data;
     },
     onSuccess: () => {
-      message.success('Tạo máy bay thành công');
+      message.success('Aircraft created successfully');
       queryClient.invalidateQueries({ queryKey: aircraftKeys.all });
     },
     onError: (error) => {
       const appError = normalizeProblemError(error);
       if (appError.status === 409) {
-        message.error('Tên máy bay đã tồn tại');
+        message.error('Aircraft name already exists');
         return;
       }
-      message.error(appError.message || 'Tạo máy bay thất bại');
+      message.error(appError.message || 'Failed to create aircraft');
     }
   });
 };

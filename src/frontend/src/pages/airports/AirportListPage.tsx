@@ -19,7 +19,7 @@ export const AirportListPage = () => {
 
   const columns: ColumnsType<AirportDto> = [
     {
-      title: 'Sân bay',
+      title: 'Airport',
       key: 'airport',
       render: (_, record) => (
         <div style={{ display: 'grid', gap: 8, minWidth: 260 }}>
@@ -30,19 +30,19 @@ export const AirportListPage = () => {
       )
     },
     {
-      title: 'Ngày tạo',
+      title: 'Created at',
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 170,
       render: (value: string) => formatDateTime(value)
     },
     {
-      title: 'Thao tác',
+      title: 'Actions',
       key: 'action',
       width: 110,
       render: () => (
         <Button icon={<EyeOutlined />} disabled>
-          Xem
+          View
         </Button>
       )
     }
@@ -52,12 +52,12 @@ export const AirportListPage = () => {
     <>
       <PageHeader
         eyebrow="Airport registry"
-        title="Quản lý sân bay"
-        subtitle="Airport directory hiển thị code, name và address theo business context."
+        title="Airport management"
+        subtitle="Browse airport codes, names, and addresses in a business-ready registry view."
         meta={formatQuerySyncLabel(lastUpdatedAt)}
         extra={
           <Button type="primary" icon={<PlusOutlined />} size="large" onClick={() => navigate('/airports/create')}>
-            Tạo mới
+            Create airport
           </Button>
         }
       />

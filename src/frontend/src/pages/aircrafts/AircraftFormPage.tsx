@@ -38,15 +38,15 @@ export const AircraftFormPage = () => {
     <>
       <PageHeader
         eyebrow="Fleet setup"
-        title="Tạo máy bay"
-        subtitle="Aircraft form gom nhóm identity và manufacturing data theo cách gần với inventory management hơn."
+        title="Create aircraft"
+        subtitle="The form groups identity and manufacturing data in a fleet-friendly structure."
         onBack={() => navigate('/aircrafts')}
       />
 
       <SectionCard title="Aircraft profile" subtitle="Fleet registry fields used by flight setup">
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
           <FormSection title="Identity" description="Name and model are surfaced in flight detail and fleet registry views.">
-            <Form.Item label="Tên" validateStatus={errors.name ? 'error' : undefined} help={errors.name?.message}>
+            <Form.Item label="Name" validateStatus={errors.name ? 'error' : undefined} help={errors.name?.message}>
               <Controller name="name" control={control} render={({ field }) => <Input {...field} />} />
             </Form.Item>
             <Form.Item label="Model" validateStatus={errors.model ? 'error' : undefined} help={errors.model?.message}>
@@ -56,7 +56,7 @@ export const AircraftFormPage = () => {
 
           <FormSection title="Manufacturing" description="Manufacturing year is kept as structured numeric data.">
             <Form.Item
-              label="Năm sản xuất"
+              label="Manufacturing year"
               validateStatus={errors.manufacturingYear ? 'error' : undefined}
               help={errors.manufacturingYear?.message}
             >
@@ -78,9 +78,9 @@ export const AircraftFormPage = () => {
 
           <FormActionsBar>
             <Space>
-              <Button onClick={() => navigate('/aircrafts')}>Hủy</Button>
+              <Button onClick={() => navigate('/aircrafts')}>Cancel</Button>
               <Button type="primary" htmlType="submit" loading={createMutation.isPending}>
-                Tạo mới
+                Create aircraft
               </Button>
             </Space>
           </FormActionsBar>

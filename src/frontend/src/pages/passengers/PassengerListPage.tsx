@@ -34,19 +34,19 @@ export const PassengerListPage = () => {
   const columns: ColumnsType<PassengerDto> = useMemo(
     () => [
       {
-        title: 'Hành khách',
+        title: 'Passenger',
         key: 'passenger',
         render: (_, record) => (
           <div style={{ display: 'grid', gap: 8, minWidth: 240 }}>
             <Text strong>{record.name}</Text>
-            <Text type="secondary">{`${record.age} tuổi · Passport ${record.passportNumber}`}</Text>
+            <Text type="secondary">{`${record.age} years old · Passport ${record.passportNumber}`}</Text>
             <Text type="secondary" style={{ fontFamily: '"JetBrains Mono", monospace' }}>{`PSG-${record.id}`}</Text>
           </div>
         ),
         sorter: true
       },
       {
-        title: 'Loại',
+        title: 'Type',
         dataIndex: 'passengerType',
         key: 'passengerType',
         width: 150,
@@ -55,14 +55,14 @@ export const PassengerListPage = () => {
         )
       },
       {
-        title: 'Ngày tạo',
+        title: 'Created at',
         dataIndex: 'createdAt',
         key: 'createdAt',
         width: 170,
         render: (value: string | Date) => formatDateTime(value)
       },
       {
-        title: 'Thao tác',
+        title: 'Actions',
         key: 'actions',
         width: 96,
         render: (_, record) => (
@@ -95,8 +95,8 @@ export const PassengerListPage = () => {
     <>
       <PageHeader
         eyebrow="Passenger directory"
-        title="Danh sách hành khách"
-        subtitle="Passenger list tập trung vào identity, passport và passenger type thay vì cột ID riêng lẻ."
+        title="Passenger list"
+        subtitle="Review identity-linked passenger records, passport details, and passenger types in one place."
         meta={formatQuerySyncLabel(lastUpdatedAt)}
       />
 
@@ -112,7 +112,7 @@ export const PassengerListPage = () => {
         }
       >
         <SearchInput
-          placeholder="Tìm theo tên"
+          placeholder="Search by name"
           value={params.searchTerm || ''}
           onSearch={(value) =>
             setParams((prev) => {
@@ -135,7 +135,7 @@ export const PassengerListPage = () => {
         dataSource={passengersQuery.data?.data || []}
         locale={
           passengersQuery.isError
-            ? { emptyText: 'Không tải được danh sách hành khách. Vui lòng thử lại.' }
+            ? { emptyText: 'Unable to load the passenger list. Please try again.' }
             : undefined
         }
         onChange={handleTableChange}
