@@ -13,10 +13,9 @@ The current implementation is a microservice architecture with event-driven work
 - Redis backs rate limiting and request throttling decisions inside the backend services.
 
 ```mermaid
-%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 55, 'rankSpacing': 75}}}%%
 flowchart TB
-    FE["Frontend<br/>React/Vite SPA<br/>served via nginx"]
-    API["nginx reverse proxy"]
+    U["User"]
+    FE["Frontend nginx"]
 
     subgraph BC["Bounded Contexts"]
         direction LR
@@ -27,7 +26,11 @@ flowchart TB
         PY["Payment"]
     end
 
-    subgraph DATA["PostgreSQL Platform"]
+    subgraph INFRA["Shared Infrastructure"]
+        MQ["RabbitMQ and Redis"]
+    end
+
+    subgraph DB["PostgreSQL"]
         direction LR
         IDDB["identity_db"]
         FLDB["flight_db"]
@@ -36,15 +39,13 @@ flowchart TB
         PYDB["payment_db"]
     end
 
-    SI["Shared Infrastructure<br/>RabbitMQ and Redis"]
+    U -->|access public website| FE
 
-    FE --> API
-
-    API --> ID
-    API --> FL
-    API --> PA
-    API --> BO
-    API --> PY
+    FE --> ID
+    FE --> FL
+    FE --> PA
+    FE --> BO
+    FE --> PY
 
     ID --> IDDB
     FL --> FLDB
@@ -52,17 +53,7 @@ flowchart TB
     BO --> BODB
     PY --> PYDB
 
-    classDef frontend fill:#EAF2FF,stroke:#2563EB,stroke-width:1.6px,color:#0F172A
-    classDef access fill:#FFF7ED,stroke:#F59E0B,stroke-width:1.2px,color:#7C2D12
-    classDef service fill:#EAFBF1,stroke:#16A34A,stroke-width:1.3px,color:#0F172A
-    classDef data fill:#F8FAFC,stroke:#64748B,stroke-width:1.1px,color:#334155
-    classDef infra fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px,stroke-dasharray: 4 3,color:#334155
-
-    class FE frontend
-    class API access
-    class ID,FL,PA,BO,PY service
-    class IDDB,FLDB,PADB,BODB,PYDB data
-    class SI infra
+    BC -->|all bounded context| INFRA
 ```
 
 ## Bounded Context Responsibilities
@@ -102,7 +93,7 @@ The documented deployment path is:
 - ECS/Fargate services for the frontend and backend workloads
 - Amazon RDS PostgreSQL as the shared database platform
 - Amazon ECR for image storage
-- GitHub Actions workflows for release build, staging deployment, and production deployment
+- GitHub Actions workflows for release build and staging deployment
 
 ## Cross-Cutting Runtime Capabilities
 

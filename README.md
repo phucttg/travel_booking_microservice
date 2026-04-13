@@ -114,31 +114,24 @@ RabbitMQ carries the current cross-service contracts implemented in `src/buildin
 The implemented system follows a microservice architecture with bounded contexts aligned to travel-booking business capabilities. The frontend is a React/Vite single-page application served through nginx, while `identity`, `flight`, `passenger`, `booking`, and `payment` each own a distinct slice of the domain. RabbitMQ, PostgreSQL, and Redis provide shared runtime capabilities without blurring service ownership.
 
 ```mermaid
-%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 58, 'rankSpacing': 78}}}%%
 flowchart TB
-    FE["Frontend<br/>React/Vite SPA<br/>served via nginx"]
-    ING["nginx ingress<br/>reverse proxy"]
+    U["User"]
+    FE["Frontend nginx"]
 
-    subgraph LAYOUT[" "]
+    subgraph BC["Bounded Contexts"]
         direction LR
-
-        subgraph BC["Bounded Contexts"]
-            direction LR
-            ID["Identity<br/>auth and users"]
-            FL["Flight<br/>flights and seats"]
-            PA["Passenger<br/>profile projection"]
-            BO["Booking<br/>booking lifecycle"]
-            PY["Payment<br/>intents and wallet"]
-        end
-
-        subgraph INFRA["Shared Runtime Infrastructure"]
-            direction TB
-            MQ["RabbitMQ<br/>async events"]
-            RD["Redis<br/>rate limiting"]
-        end
+        ID["Identity"]
+        FL["Flight"]
+        PA["Passenger"]
+        BO["Booking"]
+        PY["Payment"]
     end
 
-    subgraph DATA["PostgreSQL Platform"]
+    subgraph INFRA["Shared Infrastructure"]
+        MQ["RabbitMQ and Redis"]
+    end
+
+    subgraph DB["PostgreSQL"]
         direction LR
         IDDB["identity_db"]
         FLDB["flight_db"]
@@ -147,13 +140,13 @@ flowchart TB
         PYDB["payment_db"]
     end
 
-    FE --> ING
+    U -->|access public website| FE
 
-    ING --> ID
-    ING --> FL
-    ING --> PA
-    ING --> BO
-    ING --> PY
+    FE --> ID
+    FE --> FL
+    FE --> PA
+    FE --> BO
+    FE --> PY
 
     ID --> IDDB
     FL --> FLDB
@@ -161,27 +154,7 @@ flowchart TB
     BO --> BODB
     PY --> PYDB
 
-    ID -. user events .-> MQ
-    MQ -. passenger sync .-> PA
-
-    BO -. seat/flight .-> FL
-    BO -. passenger .-> PA
-    BO -. payment .-> PY
-    BO -. rate limiting .-> RD
-
-    classDef frontend fill:#DBEAFE,stroke:#2563EB,stroke-width:1.4px,color:#0F172A;
-    classDef access fill:#FFF7ED,stroke:#F59E0B,stroke-width:1.2px,color:#7C2D12;
-    classDef service fill:#DCFCE7,stroke:#16A34A,stroke-width:1.3px,color:#0F172A;
-    classDef data fill:#F8FAFC,stroke:#64748B,stroke-width:1.1px,color:#334155;
-    classDef infra fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px,color:#334155;
-
-    class FE frontend;
-    class ING access;
-    class ID,FL,PA,BO,PY service;
-    class IDDB,FLDB,PADB,BODB,PYDB data;
-    class MQ,RD infra;
-
-    style LAYOUT fill:transparent,stroke:transparent;
+    BC -->|all bounded context| INFRA
 ```
 
 ### Bounded Context Responsibilities
@@ -213,7 +186,7 @@ flowchart TB
 
 ```text
 .
-├── .github/workflows/        # PR CI, release build, staging deploy, production deploy
+├── .github/workflows/        # PR CI, release build, staging deploy
 ├── deployments/             # Docker Compose, smoke scripts, ECS helpers, SQL/bootstrap, observability configs
 ├── docs/                    # Architecture, protocols, storage, reliability, runbooks, evidence
 └── src/
@@ -296,12 +269,11 @@ docker compose -f deployments/docker-compose/docker-compose.yaml down --remove-o
 
 ## CI/CD Workflow
 
-The repository currently contains four GitHub Actions workflows:
+The repository currently contains three GitHub Actions workflows:
 
 - `PR CI`: builds, tests, and validates Docker images for the affected services
 - `Main Build Release`: builds changed service images, pushes them to Amazon ECR, and publishes a release manifest to S3
 - `Deploy Staging`: downloads a release manifest by git SHA, runs migrations in ECS tasks, updates service task definitions, bootstraps the smoke user, and runs smoke checks
-- `Deploy Production`: manually deploys a chosen release manifest SHA to production using the same migration and smoke pattern
 
 ### Staging flow
 
@@ -311,14 +283,6 @@ The repository currently contains four GitHub Actions workflows:
 4. ECS one-off migration tasks run for non-frontend services
 5. ECS services are updated and waited to stability
 6. Smoke-user bootstrap and smoke verification run against the public base URL
-
-### Production flow
-
-1. Trigger `Deploy Production` manually with a release manifest SHA
-2. Download the matching manifest from S3
-3. Run ECS migration tasks
-4. Register new task definition revisions and roll services
-5. Run the same smoke-user bootstrap and smoke verification steps
 
 ## Verification Commands
 

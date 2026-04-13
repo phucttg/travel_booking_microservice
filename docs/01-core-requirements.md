@@ -91,5 +91,5 @@ The implemented codebase contains:
 - per-service `/metrics` for Prometheus scraping
 - per-service `/swagger`
 - local Docker Compose bootstrap and smoke scripts
-- GitHub Actions PR CI, release build, staging deploy, and production deploy workflows
+- GitHub Actions PR CI, release build, and staging deploy workflows
 - evidence pack for public access, cloud deployment, and CI/CD verification
