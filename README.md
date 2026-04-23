@@ -3,7 +3,7 @@
 - **Live Demo:** [https://www.phuctruongtrangiaa.app/login](https://www.phuctruongtrangiaa.app/login)
 - **CloudFront Domain:** `dztx0tthix52u.cloudfront.net`
 - **Evidence Pack:** [docs/evidence/README.md](docs/evidence/README.md)
-- **Video:** [SharePoint recording](https://buveduvn0-my.sharepoint.com/personal/phuc_ttg_st_buv_edu_vn/_layouts/15/guestaccess.aspx?share=IQBZ5Chbn-YTRJmaRj_v_oRrAVTOMiQKIIBGLTrGOjDjXE0&e=SF9skB&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
+- **Video:** [SharePoint recording](https://buveduvn0-my.sharepoint.com/personal/phuc_ttg_st_buv_edu_vn/_layouts/15/guestaccess.aspx?share=IQBZ5Chbn-YTRJmaRj_v_oRrAVTOMiQKIIBGLTrGOjDjXE0&e=dTUycy&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 
 This repository contains a cloud-native travel booking platform built as a multi-service NestJS system with a React/Vite frontend. The runtime is split into dedicated services for `identity`, `flight`, `passenger`, `booking`, and `payment`, with nginx acting as the frontend reverse proxy and browser entrypoint. Shared runtime capabilities include PostgreSQL, RabbitMQ, Redis-backed rate limiting, and OpenTelemetry-based observability.
 
