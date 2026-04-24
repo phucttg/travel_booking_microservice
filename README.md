@@ -3,6 +3,7 @@
 - **Live Demo:** [https://www.phuctruongtrangiaa.app/login](https://www.phuctruongtrangiaa.app/login)
 - **CloudFront Domain:** `dztx0tthix52u.cloudfront.net`
 - **Evidence Pack:** [docs/evidence/README.md](docs/evidence/README.md)
+- **Video Script:** [docs/06-video-recording-script.md](docs/06-video-recording-script.md)
 - **Video:** [SharePoint recording](https://buveduvn0-my.sharepoint.com/personal/phuc_ttg_st_buv_edu_vn/_layouts/15/guestaccess.aspx?share=IQBZ5Chbn-YTRJmaRj_v_oRrAVTOMiQKIIBGLTrGOjDjXE0&e=dTUycy&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 - **Video:** (https://buveduvn0-my.sharepoint.com/personal/phuc_ttg_st_buv_edu_vn/_layouts/15/guestaccess.aspx?share=IQBZ5Chbn-YTRJmaRj_v_oRrAVTOMiQKIIBGLTrGOjDjXE0&e=qpymbj&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 
