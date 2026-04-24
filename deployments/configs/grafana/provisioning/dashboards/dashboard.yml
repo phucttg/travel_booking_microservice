@@ -1,4 +1,4 @@
-# https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards
+# Grafana dashboard provisioning for dashboards mounted into the local container.
 apiVersion: 1
 
 providers:
@@ -9,6 +9,6 @@ providers:
     disableDeletion: false
     editable: true
     allowUiUpdates: true
-    updateIntervalSeconds: 5 # how often Grafana will scan for changed dashboards
+    updateIntervalSeconds: 5 # Re-scan mounted dashboard files during local development.
     options:
-      path: /var/lib/grafana/dashboards # path to dashboards on disk
+      path: /var/lib/grafana/dashboards # Includes bundled baseline dashboard JSON files.

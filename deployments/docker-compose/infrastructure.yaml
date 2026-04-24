@@ -127,7 +127,7 @@ services:
     volumes:
       - ./../configs/grafana/provisioning:/etc/grafana/provisioning
       - ./../configs/grafana/dashboards:/var/lib/grafana/dashboards
-      ## https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/
+      # Optional local Grafana runtime overrides can be mounted here when needed.
       # - ./../configs/grafana/grafana.ini:/etc/grafana/grafana.ini
     networks:
       - infrastructure
